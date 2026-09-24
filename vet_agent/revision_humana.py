@@ -4,10 +4,15 @@ from vet_agent.estado import Estado
 
 
 def revision_humana(estado: Estado) -> dict:
-    # interrupt pausa el grafo aca y le muestra el borrador a quien revisa.
-    # el grafo sigue recien cuando alguien responde (aprobado o no)
+    evaluacion = estado["evaluacion"]
+
+    # si se acabaron las rondas sin informe final, igual llega al humano
+    # con lo que haya y con las preguntas que quedaron sin resolver
+    informe = evaluacion.get("informe", {})
+
     decision = interrupt({
-        "nivel_riesgo": estado["evaluacion"]["nivel_riesgo_global"],
-        "borrador": estado["evaluacion"]["borrador_informe"],
+        "nivel_riesgo": informe.get("nivel_riesgo_global", "no determinado"),
+        "informe": informe,
+        "preguntas_pendientes": evaluacion.get("preguntas", []),
     })
     return {"decision_humana": decision}

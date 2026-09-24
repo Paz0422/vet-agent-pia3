@@ -38,3 +38,5 @@ class Estado(TypedDict):
 
     # lo que decidio el revisor humano: {"aprobado": True/False, "comentarios": "..."}
     decision_humana: dict
+
+    ventas_tests: str             # venta/uso de kits diagnosticos en la zona

@@ -39,9 +39,15 @@ if __name__ == "__main__":
     # mientras el grafo este pausado esperando revision, preguntamos por terminal
     while "__interrupt__" in resultado:
         pausa = resultado["__interrupt__"][0].value
-        print("\n--- BORRADOR PARA REVISIÓN ---")
+        print("\n--- INFORME PARA REVISIÓN ---")
         print("Nivel de riesgo:", pausa["nivel_riesgo"])
-        print(json.dumps(pausa["borrador"], ensure_ascii=False, indent=2))
+        print(json.dumps(pausa["informe"], ensure_ascii=False, indent=2))
+
+        # si el moderador no alcanzo a cerrar, mostramos lo que quedo pendiente
+        if pausa["preguntas_pendientes"]:
+            print("\nPreguntas sin resolver:")
+            for p in pausa["preguntas_pendientes"]:
+                print(f"- {p['agente_destino']}: {p['pregunta']}")
 
         respuesta = input("\n¿Aprobar el informe? (s/n): ").strip().lower()
         if respuesta == "s":

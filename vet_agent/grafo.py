@@ -6,6 +6,7 @@ from vet_agent.agentes.diagnostico import diagnostico
 from vet_agent.agentes.bioseguridad import bioseguridad
 from vet_agent.agentes.moderador import moderador
 from vet_agent.revision_humana import revision_humana
+from vet_agent.config import MAX_RONDAS
 
 # el moderador evalua como maximo 3 veces, despues pasa si o si a revision humana
 MAX_REVISIONES = 3
@@ -15,12 +16,13 @@ ESPECIALISTAS = ["climatico", "diagnostico", "bioseguridad"]
 
 def despues_del_moderador(estado: Estado):
     evaluacion = estado["evaluacion"]
-    pide_revision = evaluacion.get("requiere_nueva_revision", False)
-    agentes = evaluacion.get("agente_a_consultar", [])
 
-    if pide_revision and agentes and estado["revisiones"] < MAX_REVISIONES:
-        # devolvemos la lista de agentes, langgraph los corre en paralelo
-        return agentes
+    if evaluacion.get("estado") == "requiere_debate" and estado["revisiones"] < MAX_RONDAS:
+        destinos = [p.get("agente_destino") for p in evaluacion.get("preguntas", [])]
+        # sacamos repetidos y cualquier nombre que no sea un agente real
+        agentes = [a for a in dict.fromkeys(destinos) if a in ESPECIALISTAS]
+        if agentes:
+            return agentes
 
     return "revision_humana"
 
