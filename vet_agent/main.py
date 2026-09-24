@@ -1,12 +1,18 @@
 import json
 
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.types import Command
+
 from vet_agent.grafo import construir_grafo
 
 
 if __name__ == "__main__":
-    app = construir_grafo()
+    # InMemorySaver guarda el estado en memoria mientras corre el programa
+    app = construir_grafo(InMemorySaver())
 
-    # caso inventado para probar, despues vendra de la interfaz
+    # thread_id identifica el caso, sirve para retomarlo despues de la pausa
+    config = {"configurable": {"thread_id": "caso-prueba-1"}}
+
     caso = {
         "especie": "porcino",
         "sistema_productivo": "plantel de engorda",
@@ -20,8 +26,31 @@ if __name__ == "__main__":
         "manejo_bioseguridad": "sin cuarentena de ingreso",
     }
 
-    resultado = app.invoke({"caso": caso, "resultados": {}, "solicitudes": {}})
+    estado_inicial = {
+        "caso": caso,
+        "resultados": {},
+        "solicitudes": {},
+        "revisiones": 0,
+        "decision_humana": {},
+    }
 
-    # mostramos el borrador del informe que armo el moderador
-    borrador = resultado["evaluacion"]["borrador_informe"]
-    print(json.dumps(borrador, ensure_ascii=False, indent=2))
+    resultado = app.invoke(estado_inicial, config)
+
+    # mientras el grafo este pausado esperando revision, preguntamos por terminal
+    while "__interrupt__" in resultado:
+        pausa = resultado["__interrupt__"][0].value
+        print("\n--- BORRADOR PARA REVISIÓN ---")
+        print("Nivel de riesgo:", pausa["nivel_riesgo"])
+        print(json.dumps(pausa["borrador"], ensure_ascii=False, indent=2))
+
+        respuesta = input("\n¿Aprobar el informe? (s/n): ").strip().lower()
+        if respuesta == "s":
+            decision = {"aprobado": True, "comentarios": ""}
+        else:
+            comentarios = input("Comentarios para el moderador: ")
+            decision = {"aprobado": False, "comentarios": comentarios}
+
+        # Command(resume=...) le entrega la decision al grafo y sigue desde la pausa
+        resultado = app.invoke(Command(resume=decision), config)
+
+    print("\nInforme aprobado por el revisor.")
