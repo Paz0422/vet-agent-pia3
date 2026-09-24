@@ -1,12 +1,11 @@
 from vet_agent.estado import Estado
-from vet_agent.llm import consultar_llm
+from vet_agent.llm import consultar_llm, leer_json
+from vet_agent.prompts import PROMPT_CLIMATICO
+from vet_agent.agentes.base import preparar_pregunta
 
 
 def climatico(estado: Estado) -> dict:
-    # revisa temperatura, humedad, lluvias, etc. del caso
-    respuesta = consultar_llm(
-        "Eres un experto en factores climaticos de riesgo sanitario.",
-        f"Analiza este caso: {estado['caso']}",
-    )
-    # solo devolvemos lo que cambia, langgraph lo junta con el resto
-    return {"hallazgos": [f"[Climatico] {respuesta}"]}
+    pregunta = preparar_pregunta(estado, "climatico")
+    texto = consultar_llm(PROMPT_CLIMATICO, pregunta, "climatico")
+    # guardamos el JSON del agente bajo su nombre
+    return {"resultados": {"climatico": leer_json(texto)}}
