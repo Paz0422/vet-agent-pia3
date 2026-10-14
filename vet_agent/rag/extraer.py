@@ -130,6 +130,9 @@ def main() -> None:
             escaneados.append(pdf.name)
             continue
         limpio = limpiar(crudo)
+        if not limpio:
+            escaneados.append(pdf.name)
+            continue
         (SALIDA / f"{pdf.stem}.txt").write_text(limpio, encoding="utf-8")
         print("OK", pdf.name, len(crudo), "->", len(limpio), "caracteres")
 
