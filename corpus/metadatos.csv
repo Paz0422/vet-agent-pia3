@@ -1,0 +1,27 @@
+id,titulo,institucion,anio,tipo,jurisdiccion,vigente
+D3,"Plan de Contingencia Influenza Aviar (IA), Version 6.0",SAG,2023,norma,Chile,si
+D5,Guia sobre la reglamentacion relativa al transporte de sustancias infecciosas 2019-2020,OMS,2019,guia,internacional,no
+D6,"Manual Terrestre de la OMSA, Capitulo 1.1.5: Gestion de calidad en los laboratorios de pruebas veterinarias",OMSA,2024,estandar_internacional,internacional,si
+D7,"Manual Terrestre de la OMSA, Capitulo 1.1.6: Validacion de las pruebas de diagnostico de las enfermedades infecciosas de animales terrestres",OMSA,2023,estandar_internacional,internacional,si
+D8,"Manual Terrestre de la OMSA, Capitulo 3.3.4: Influenza aviar (incluida la infeccion por los virus de la influenza aviar altamente patogenos)",OMSA,2021,estandar_internacional,internacional,si
+D9,IDEXX Reference Laboratories: Specimen Collection Guidelines,IDEXX,2025,manual_fabricante,internacional,si
+D10,"Codes and Manuals: Terrestrial Manual, Capitulo 1.1.2 Collection, submission and storage of diagnostic specimens",OMSA,2026,estandar_internacional,internacional,si
+D11,"Kits aprobados por el Servicio, segun instructivo tecnico pertinente (D-ATR-AAT-096, version 01)",SAG,2026,norma,Chile,si
+D13,IDEXX PRRS X3 Ab Test - pagina de producto,IDEXX,s.f.,manual_fabricante,internacional,si
+D14,Best practices for using the IDEXX PRRS Oral Fluids Ab Test,IDEXX,s.f.,manual_fabricante,internacional,si
+D15,IDEXX PRRS Oral Fluids Ab Test (North America) - pagina de producto,IDEXX,s.f.,manual_fabricante,internacional,si
+D16,"Manual Terrestre de la OMSA, Capitulo 3.9.6: Sindrome reproductivo y respiratorio porcino (PRRS)",OMSA,2021,estandar_internacional,internacional,si
+D17,Field application of a commercial PRRSV oral fluid antibody ELISA,The Canadian Veterinary Journal,2020,articulo,internacional,si
+D18,Kinetics of the PRRSV humoral immune response in swine serum and oral fluids collected from individual boars,BMC Veterinary Research,2013,articulo,internacional,si
+D19,"Manual Terrestre de la OMSA, Capitulo 2.2.1: Desarrollo y optimizacion de los ensayos de deteccion de anticuerpos",OMSA,2024,estandar_internacional,internacional,si
+D20,IDEXX AI MultiS-Screen Ab Test - pagina de producto,IDEXX,s.f.,manual_fabricante,internacional,si
+D21,Limited detection of antibodies to clade 2.3.4.4 A/goose/Guangdong/1/1996 lineage HPAI virus in North American waterfowl,Journal of Wildlife Diseases,2020,articulo,internacional,si
+D22,"Instructivo Tecnico para el Diagnostico de Influenza Aviar mediante ELISA y RT-PCR en tiempo real (D-ATR-AAT-013, version 03)",SAG,2026,instructivo,Chile,si
+D23,Comparison of whole blood on filter strips with serum for avian influenza virus antibody detection in wild birds,Conservation Physiology,2025,articulo,internacional,si
+D24,Surveillance of live birds for active and past infections reveals the impact of highly pathogenic H5N1 on seabird populations in Atlantic Canada,Canadian Journal of Microbiology,2026,articulo,internacional,si
+D25,Evaluation of three commercially available influenza A type specific blocking ELISAs for seroepidemiological studies of influenza A virus infection in pigs,Journal of Clinical Microbiology,2012,articulo,internacional,si
+D27,Avian Sample Collection for Influenza A and Newcastle Disease (NVSL-WI-0023),USDA-APHIS NVSL,2024,instructivo,internacional,si
+D32,MIQE 2.0: Revision of the Minimum Information for Publication of Quantitative Real-Time PCR Experiments Guidelines,Clinical Chemistry,2025,guia,internacional,si
+D33,Development of a real-time reverse transcriptase PCR assay for type A influenza virus and the avian H5 and H7 hemagglutinin subtypes,Journal of Clinical Microbiology,2002,articulo,internacional,si
+D34,Guidelines for oral fluid-based surveillance of viral pathogens in swine,Porcine Health Management,2020,articulo,internacional,si
+D35,The use of oral fluid diagnostics in swine medicine,Journal of Swine Health and Production,2018,articulo,internacional,si
