@@ -1,144 +1,107 @@
-"""Tarea 2 - Pasar los PDF de corpus/D/ a texto limpio en corpus/txt/.
+# Tarea 3: cortar(texto) -> lista de pedazos de ~1200 caracteres
+#
+# 
 
-Uso (desde la raiz del repo):
-    python -m vet_agent.rag.extraer
-
-D8.pdf -> corpus/txt/D8.txt
-Los PDF escaneados (casi sin texto) se omiten y se listan al final
-(tambien quedan en corpus/escaneados.txt).
-"""
-import pathlib
 import re
-from collections import Counter
 
-try:
-    import pymupdf as fitz  # nombre nuevo de pymupdf
-except ImportError:  # versiones antiguas
-    import fitz
-
-RAIZ = pathlib.Path(__file__).resolve().parents[2]  # raiz del repo
-ENTRADA = RAIZ / "corpus" / "D"
-SALIDA = RAIZ / "corpus" / "txt"
-SALIDA.mkdir(parents=True, exist_ok=True)
-
-# Frases que se repiten en cada hoja y no aportan. Se borran en todos los PDF.
-# (Los encabezados/pies repetidos ya se detectan solos; esto es para casos raros.)
-BASURA = []
-
-# Linea que es un numero de pagina CON texto: "Pág. 3 de 20", "Page 3 of 14", "- 12 -"
-RE_PAG_CON_TEXTO = re.compile(
-    r"^\s*[-–—]?\s*(?:p[áa]g(?:ina)?\.?|page)\s*\d{1,4}"
-    r"(?:\s*(?:de|of|/)\s*\d{1,4})?\s*[-–—]?\s*$",
-    re.IGNORECASE,
-)
-# Linea que es SOLO un numero: "12", "- 12 -"
-RE_SOLO_NUM = re.compile(r"^\s*[-–—]?\s*(\d{1,4})\s*[-–—]?\s*$")
-# Linea de puntos que se usa como separador de hoja
-RE_PUNTOS = re.compile(r"^\s*\.{6,}\s*$")
-
-BORDE_ARRIBA = 8   # cuantas lineas del inicio de la hoja se miran
-BORDE_ABAJO = 4    # cuantas lineas del final de la hoja se miran
+MAX_CHARS = 1200   # tamano aproximado de cada pedazo
+SOLAPE = 200       # cuanto se repite del pedazo anterior
 
 
-def _normalizar(linea: str) -> str:
-    """Clave para comparar lineas entre paginas (los digitos varian: 'Pág. 3')."""
-    return re.sub(r"\s+", " ", re.sub(r"\d+", "#", linea.strip().lower()))
+def _por_palabras(texto: str, max_chars: int) -> list[str]:
+    """Parte un texto largo por palabras para no cortar ninguna a la mitad.
 
-
-def quitar_encabezados_y_numeros(paginas: list[str]) -> list[str]:
-    """Borra encabezados/pies repetidos y numeros de pagina.
-
-    Solo se toca el BORDE de cada hoja (primeras y ultimas lineas), nunca el
-    medio. Asi no se borran numeros que son datos (tablas: "hasta 11 torulas").
+    Si aparece una palabra sola mas larga que max_chars (una URL, una cadena
+    sin espacios), se corta a la fuerza para respetar el limite.
     """
-    lineas_por_pag = [p.splitlines() for p in paginas]
-
-    def indices_borde(lineas):
-        """Posiciones (en `lineas`) de las lineas no vacias del borde."""
-        pos = [i for i, l in enumerate(lineas) if l.strip()]
-        return set(pos[:BORDE_ARRIBA] + pos[-BORDE_ABAJO:])
-
-    # En cuantas hojas aparece cada linea (solo mirando los bordes)
-    conteo = Counter()
-    for lineas in lineas_por_pag:
-        if sum(1 for l in lineas if l.strip()) < 8:  # hoja muy corta: no arriesgar
+    partes, actual = [], ""
+    for palabra in texto.split():
+        if len(palabra) > max_chars:
+            if actual:
+                partes.append(actual)
+                actual = ""
+            for i in range(0, len(palabra), max_chars):
+                partes.append(palabra[i:i + max_chars])
             continue
-        claves = {_normalizar(lineas[i]) for i in indices_borde(lineas)}
-        conteo.update(c for c in claves if 0 < len(c) <= 150 and c.strip("#. ") != "")
-
-    # Solo con 3+ hojas; "repetida" = aparece en >=40% de ellas
-    umbral = max(3, int(len(paginas) * 0.4))
-    repetidas = {c for c, n in conteo.items() if n >= umbral} if len(paginas) >= 3 else set()
-
-    limpias = []
-    for num, lineas in enumerate(lineas_por_pag, start=1):
-        borde = indices_borde(lineas)
-        nuevas = []
-        for i, l in enumerate(lineas):
-            if i in borde:
-                m = RE_SOLO_NUM.match(l)
-                # numero suelto: solo si esta en el borde Y coincide con el nº de hoja
-                if m and int(m.group(1)) in (num, num - 1, num + 1):
-                    continue
-                if RE_PAG_CON_TEXTO.match(l) or RE_PUNTOS.match(l):
-                    continue
-                if _normalizar(l) in repetidas:
-                    continue
-            nuevas.append(l)
-        limpias.append("\n".join(nuevas))
-    return limpias
+        if actual and len(actual) + 1 + len(palabra) > max_chars:
+            partes.append(actual)
+            actual = palabra
+        else:
+            actual = (actual + " " + palabra).strip()
+    if actual:
+        partes.append(actual)
+    return partes
 
 
-def limpiar(texto: str) -> str:
-    for frase in BASURA:
-        texto = texto.replace(frase, "")
-    texto = texto.replace("\r\n", "\n")
-    texto = texto.replace("\u00ad", "")                          # guion blando invisible
-    texto = texto.replace("\xa0", " ")                           # espacio duro
-    texto = texto.replace("\uf0b7", "•").replace("\uf02d", "-")  # vinetas de Word (PDF del SAG)
-    texto = re.sub(r"[\uf000-\uf8ff]", "", texto)                # otros simbolos privados
-    texto = re.sub(r"\.{4,}", " ", texto)                        # puntos de relleno (indice, separadores)
-    texto = re.sub(r"(\w)-\n(?=[a-záéíóúüñ])", r"\1", texto)     # une palabras cortadas: "vigi-\nlancia"
-    texto = re.sub(r"[ \t]+", " ", texto)                        # espacios repetidos
-    texto = re.sub(r" ?\n ?", "\n", texto)                       # espacios pegados a saltos de linea
-    texto = re.sub(r"\n{3,}", "\n\n", texto)                     # maximo una linea en blanco
-    return texto.strip()
+def _oraciones(parrafo: str) -> list[str]:
+    """Divide un parrafo tras . ! ? seguido de espacio, conservando el signo."""
+    return [o.strip() for o in re.split(r"(?<=[.!?])\s+", parrafo) if o.strip()]
 
 
-def extraer_texto(pdf: pathlib.Path) -> str:
-    with fitz.open(pdf) as doc:
-        paginas = [pag.get_text() for pag in doc]
-    paginas = quitar_encabezados_y_numeros(paginas)
-    return "\n\n".join(paginas)
+def _unidades(texto: str, max_chars: int):
+    """Genera bloques que por si solos caben en max_chars.
 
-
-def main() -> None:
-    pdfs = sorted(ENTRADA.glob("*.pdf"))
-    if not pdfs:
-        print(f"No hay PDF en {ENTRADA}")
-        return
-
-    escaneados, fallidos = [], []
-    for pdf in pdfs:
-        try:
-            crudo = extraer_texto(pdf)
-        except Exception as e:  # PDF danado o con clave
-            fallidos.append(pdf.name)
-            print("ERROR", pdf.name, e)
+    Primero por parrafos, luego por oraciones y, si una oracion sigue siendo
+    muy larga (tablas, listas sin puntos), por palabras. Asi nunca se emite
+    una unidad mayor que max_chars.
+    """
+    for parrafo in texto.split("\n\n"):
+        parrafo = parrafo.strip()
+        if not parrafo:
             continue
-        if len(crudo.strip()) < 200:  # casi sin texto = probablemente escaneado
-            escaneados.append(pdf.name)
+        if len(parrafo) <= max_chars:
+            yield parrafo
             continue
-        limpio = limpiar(crudo)
-        (SALIDA / f"{pdf.stem}.txt").write_text(limpio, encoding="utf-8")
-        print("OK", pdf.name, len(crudo), "->", len(limpio), "caracteres")
+        for oracion in _oraciones(parrafo):
+            if len(oracion) <= max_chars:
+                yield oracion
+            else:
+                yield from _por_palabras(oracion, max_chars)
 
-    print("Escaneados (necesitan OCR):", escaneados)
-    if fallidos:
-        print("Fallidos (no se pudieron abrir):", fallidos)
-    (RAIZ / "corpus" / "escaneados.txt").write_text("\n".join(escaneados), encoding="utf-8")
+
+def cortar(texto: str, max_chars: int = MAX_CHARS, solape: int = SOLAPE) -> list[str]:
+    """Recibe un texto largo y devuelve una lista de pedazos.
+
+    Cada pedazo mide como maximo max_chars + solape (1200 + 200 por defecto).
+    Ningun pedazo queda vacio y el inicio de cada uno repite el final del
+    anterior para no perder el contexto que cae justo en el borde.
+    """
+    pedazos, actual = [], ""
+    for unidad in _unidades(texto, max_chars):
+        if actual and len(actual) + len(unidad) + 2 > max_chars:
+            pedazos.append(actual.strip())
+            actual = actual[-solape:] if solape > 0 else ""
+        actual = (actual + "\n\n" + unidad).strip()
+    if actual.strip():
+        pedazos.append(actual.strip())
+    return pedazos
+
+
+EJEMPLO = (
+    "La influenza aviar es una enfermedad viral que afecta a las aves. "
+    "El diagnostico se confirma mediante RT-PCR en tiempo real. "
+    "Las muestras se toman de la traquea y la cloaca.\n\n"
+    "El laboratorio debe validar cada ensayo antes de usarlo en rutina. "
+    "Un resultado positivo se confirma con una segunda tecnica.\n\n"
+) * 40
 
 
 if __name__ == "__main__":
-    main()
-# Tarea 3: cortar(texto) -> lista de pedazos de ~1200 caracteres
+    import pathlib
+
+    # prueba.txt en la carpeta actual o en la raiz del repo; si no existe,
+    # se usa un texto de ejemplo para que el script siempre corra
+    raiz = pathlib.Path(__file__).resolve().parents[2]
+    archivo = pathlib.Path("prueba.txt")
+    if not archivo.exists():
+        archivo = raiz / "prueba.txt"
+    if archivo.exists():
+        texto = archivo.read_text(encoding="utf-8")
+        print("Leyendo", archivo)
+    else:
+        texto = EJEMPLO
+        print("No hay prueba.txt; se usa un texto de ejemplo.")
+    pedazos = cortar(texto)
+    print(len(pedazos), "pedazos")
+    for i, c in enumerate(pedazos[:3]):
+        print(f"\n--- pedazo {i} ({len(c)} caracteres) ---\n{c}")
