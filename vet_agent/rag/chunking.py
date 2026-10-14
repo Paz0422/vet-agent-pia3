@@ -77,30 +77,36 @@ def cortar(texto: str, max_chars: int = MAX_CHARS, solape: int = SOLAPE) -> list
     return pedazos
 
 
-EJEMPLO = (
-    "La influenza aviar es una enfermedad viral que afecta a las aves. "
-    "El diagnostico se confirma mediante RT-PCR en tiempo real. "
-    "Las muestras se toman de la traquea y la cloaca.\n\n"
-    "El laboratorio debe validar cada ensayo antes de usarlo en rutina. "
-    "Un resultado positivo se confirma con una segunda tecnica.\n\n"
-) * 40
-
-
 if __name__ == "__main__":
     import pathlib
+    import sys
 
-    # prueba.txt en la carpeta actual o en la raiz del repo; si no existe,
-    # se usa un texto de ejemplo para que el script siempre corra
     raiz = pathlib.Path(__file__).resolve().parents[2]
-    archivo = pathlib.Path("prueba.txt")
-    if not archivo.exists():
-        archivo = raiz / "prueba.txt"
-    if archivo.exists():
-        texto = archivo.read_text(encoding="utf-8")
-        print("Leyendo", archivo)
+    # Preferir primero un archivo prueba.txt en la raiz o carpeta actual
+    candidatos = []
+    candidatos.append(pathlib.Path("prueba.txt"))
+    candidatos.append(raiz / "prueba.txt")
+    # Si no hay prueba.txt, buscar el primer .txt de corpus/txt
+    for c in candidatos:
+        if c.exists():
+            archivo = c
+            break
     else:
-        texto = EJEMPLO
-        print("No hay prueba.txt; se usa un texto de ejemplo.")
+        # buscar corpus/txt/D*.txt
+        corpus = raiz / "corpus" / "txt"
+        if corpus.exists():
+            archivos = sorted(corpus.glob("D*.txt"))
+            if archivos:
+                archivo = archivos[0]
+            else:
+                print("No hay prueba.txt ni archivos en corpus/txt. Generalos con: python -m vet_agent.rag.extraer")
+                sys.exit(1)
+        else:
+            print("No hay prueba.txt ni corpus/txt. Genera los .txt con: python -m vet_agent.rag.extraer")
+            sys.exit(1)
+
+    texto = archivo.read_text(encoding="utf-8")
+    print("Leyendo", archivo)
     pedazos = cortar(texto)
     print(len(pedazos), "pedazos")
     for i, c in enumerate(pedazos[:3]):
