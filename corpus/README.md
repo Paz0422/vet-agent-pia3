@@ -8,6 +8,19 @@ Se excluyen D2 y D26 porque son duplicados de B11/E9 y B4.
 
 **Estado:** 26 de 34 documentos (consultados el 14/10/2026).
 
+## Columna `enfermedad`
+
+El proyecto es solo de influenza aviar, pero el corpus incluye documentos de cerdos. Esta columna permite filtrarlos en el buscador:
+
+| Valor | Significado | Documentos |
+|-------|-------------|------------|
+| `aviar` | Trata de influenza aviar o de aves. | 9 |
+| `porcino` | Trata de PRRS o de otras enfermedades de cerdos. | 9 |
+| `general` | Aplica a cualquier enfermedad: laboratorio, muestras, validación de pruebas, PCR en general. | 8 |
+
+- D11 (kits aprobados por el SAG) es `general`: lista kits de muchas especies, incluida una sección de influenza aviar.
+- D25 es `porcino` aunque trata de influenza A, porque es influenza en cerdos.
+
 ## Versiones en inglés (D6, D7, D8, D10, D16, D19)
 
 Los capítulos del Manual Terrestre de la OMSA están en su versión en inglés:
