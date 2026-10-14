@@ -59,6 +59,37 @@ def _unidades(texto: str, max_chars: int):
                 yield from _por_palabras(oracion, max_chars)
 
 
+def _ajustar_solape(tail: str) -> str:
+    """Recorta el solape para que empiece con una palabra completa.
+
+    Elimina cualquier token parcial al inicio del trozo de solape
+    (retrocede hasta el primer espacio/salto de linea).
+    """
+    if not tail:
+        return ""
+    # Quitar espacios al inicio
+    inicio = 0
+    for i, c in enumerate(tail):
+        if c.isspace():
+            inicio = i + 1
+        else:
+            break
+    cola = tail[inicio:]
+    if not cola:
+        return ""
+    # Si empieza con caracter no espacio, puede ser palabra parcial
+    # Buscar primer espacio desde la izquierda
+    idx_esp = cola.find(" ")
+    idx_nl = cola.find("\n")
+    idx = min(idx_esp if idx_esp != -1 else len(cola),
+              idx_nl if idx_nl != -1 else len(cola))
+    if idx_esp == -1 and idx_nl == -1:
+        # No hay espacios: token completo o muy largo; mejor no repetir fragmento partido
+        return ""
+    # Corta antes del primer espacio/salto para empezar en palabra completa
+    return cola[idx + 1 :] if idx < len(cola) else ""
+
+
 def cortar(texto: str, max_chars: int = MAX_CHARS, solape: int = SOLAPE) -> list[str]:
     """Recibe un texto largo y devuelve una lista de pedazos.
 
@@ -70,7 +101,12 @@ def cortar(texto: str, max_chars: int = MAX_CHARS, solape: int = SOLAPE) -> list
     for unidad in _unidades(texto, max_chars):
         if actual and len(actual) + len(unidad) + 2 > max_chars:
             pedazos.append(actual.strip())
-            actual = actual[-solape:] if solape > 0 else ""
+            if solape > 0 and len(actual) > solape:
+                cola = actual[-solape:]
+                cola = _ajustar_solape(cola)
+                actual = cola
+            else:
+                actual = ""
         actual = (actual + "\n\n" + unidad).strip()
     if actual.strip():
         pedazos.append(actual.strip())
