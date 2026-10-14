@@ -1,0 +1,94 @@
+{
+  "*": {
+    "nota": "Vale para TODOS los PDF. Solo palabras rotas por ligaduras que no existen en ningun idioma (seguras de reemplazar siempre). Las reglas de borrado (empieza_en, borrar_lineas...) van en el ID de cada documento.",
+    "reemplazar": {
+      "inVuenza": "influenza",
+      "inOuenza": "influenza",
+      "InOuenza": "Influenza",
+      "incuenza": "influenza",
+      "Vuids": "fluids",
+      "Vuid": "fluid",
+      "Oocks": "flocks",
+      "Oock": "flock",
+      "proEles": "profiles",
+      "proEts": "profits",
+      "signiEcance": "significance",
+      "deEnitive": "definitive",
+      "identiEcation": "identification",
+      "speciTcity": "specificity",
+      "conTrmatory": "confirmatory",
+      "signiTcant": "significant"
+    }
+  },
+  "D10": {
+    "nota": "Pagina web de la OMSA guardada como PDF: lineas repetidas, menu, pie de pagina y cookies",
+    "quitar_repetidas": true,
+    "empieza_en": "MANUAL OF DIAGNOSTIC TESTS AND VACCINES FOR TERRESTRIAL ANIMALS",
+    "termina_en": "Most recent updates adopted in 2026.",
+    "borrar_entre": [
+      [
+        "Newsletter",
+        "Copyright ©WOAH2026"
+      ]
+    ],
+    "borrar_lineas": [
+      "EN"
+    ]
+  },
+  "D13": {
+    "nota": "Pagina de IDEXX en espanol: ligaduras fi y fl rotas, menu y pie del sitio",
+    "reemplazar": {
+      "per<les": "perfiles",
+      "signi<cado": "significado",
+      "grá<cos": "gráficos",
+      "de<ciente": "deficiente",
+      "e<caz": "eficaz",
+      "identi<cación": "identificación",
+      "de<nitivos": "definitivos",
+      "incuenza": "influenza",
+      "cuidos": "fluidos"
+    },
+    "empieza_en": "La prueba ELISA IDEXX PRRS X3 Ab",
+    "termina_en": "ganancias de los productores.",
+    "borrar_lineas": [
+      "* No todos los productos están disponibles y/o registrados en cada país.",
+      "Atención al cliente",
+      "Información de contacto",
+      "Empleo en IDEXX",
+      "Proveedores",
+      "Buscar",
+      "Latin America",
+      "Los tamaños y las etiquetas",
+      "de las cajas variarán."
+    ]
+  },
+  "D15": {
+    "nota": "Pagina de IDEXX: ligaduras rotas y un primer parrafo que es de otro producto (PRRS X3)",
+    "reemplazar": {
+      "proEles": "profiles",
+      "proEts": "profits",
+      "signiEcance": "significance",
+      "deEnitive": "definitive",
+      "identiEcation": "identification",
+      "inVuenza": "influenza",
+      "Vuids": "fluids",
+      "Vuid": "fluid"
+    },
+    "empieza_en": "IDEXX PRRS Oral Fluids Ab",
+    "termina_en": "protect producer profits."
+  },
+  "D20": {
+    "nota": "Pagina de IDEXX: ligaduras rotas, menu y pie del sitio",
+    "reemplazar": {
+      "inOuenza": "influenza",
+      "InOuenza": "Influenza",
+      "Oocks": "flocks",
+      "Oock": "flock",
+      "speciTcity": "specificity",
+      "conTrmatory": "confirmatory",
+      "signiTcant": "significant"
+    },
+    "empieza_en": "IDEXX AI MultiS-Screen Ab",
+    "termina_en": "antibody to avian influenza virus in serum."
+  }
+}
