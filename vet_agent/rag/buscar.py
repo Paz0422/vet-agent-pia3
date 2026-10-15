@@ -9,7 +9,7 @@ RUTA_DB = str(RAIZ / "chroma_db")
 
 _ef = embedding_functions.SentenceTransformerEmbeddingFunction(
     model_name="paraphrase-multilingual-MiniLM-L12-v2")
-_cliente = chromadb.PersistentClient(path=RUTA_DB)
+_cliente = chromadb.PersistentClient(path=str(RAIZ / "chroma_db"))
 
 
 def buscar_crudo(coleccion: str, pregunta: str, k: int = 5) -> list[dict]:
