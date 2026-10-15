@@ -19,7 +19,7 @@ import pathlib
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import parse_qsl, unquote, urlencode, urlparse
+from urllib.parse import parse_qsl, unquote, urlencode, urljoin, urlparse
 
 import pandas as pd
 from rapidfuzz import fuzz, utils
@@ -59,6 +59,10 @@ RE_DOI = re.compile(r"10\.\d{4,9}/[^\s?#&\"'<>]+", re.IGNORECASE)
 RE_PMCID = re.compile(r"\bPMC\d{4,9}\b", re.IGNORECASE)
 RE_TRACKING = re.compile(r"^(utm_.*|fbclid|gclid|dclid|mc_cid|mc_eid|_ga|_gl|_hsenc|_hsmi)$", re.IGNORECASE)
 RE_TITLE = re.compile(rb"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+# <meta http-equiv="refresh" content="0; url='...'"> (paginas intermedias como linkinghub.elsevier.com)
+RE_META_REFRESH = re.compile(
+    rb"""<meta[^>]+http-equiv=["']?refresh["']?[^>]*content=["']?\s*\d+\s*;\s*url=['"]?([^"'>\s]+)""",
+    re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -230,18 +234,26 @@ def _similitud(titulo_pagina: str, *esperados: str) -> int:
                 for t in esperados if t), default=0)
 
 
-def revisar_url(url: str) -> dict:
-    """Cabeceras (y en HTML los primeros 20 KB) de una URL. Lanza red.FalloRed si no sirve."""
-    if urlparse(url).path in ("", "/"):
-        raise red.FalloRed(red.PORTADA_LOGIN, "la URL es la portada del sitio")
+def _leer_inicio(url: str) -> tuple[str, bool, bytes]:
+    """(url_final, es_pdf, primeros 20 KB si es HTML)."""
     url_final, r = red.seguir(url, timeout=TIMEOUT, stream=True)
     try:
         es_pdf = "pdf" in r.headers.get("Content-Type", "").lower()
         inicio = b"" if es_pdf else next(r.iter_content(BYTES_TITULO), b"")[:BYTES_TITULO]
     finally:
         r.close()
-    if inicio[:5] == b"%PDF-":
-        es_pdf = True
+    return url_final, es_pdf or inicio[:5] == b"%PDF-", inicio
+
+
+def revisar_url(url: str) -> dict:
+    """Cabeceras (y en HTML los primeros 20 KB) de una URL. Lanza red.FalloRed si no sirve."""
+    if urlparse(url).path in ("", "/"):
+        raise red.FalloRed(red.PORTADA_LOGIN, "la URL es la portada del sitio")
+    url_final, es_pdf, inicio = _leer_inicio(url)
+    m = None if es_pdf else RE_META_REFRESH.search(inicio)
+    if m:  # pagina intermedia que redirige con <meta refresh>: se sigue una vez (con robots.txt)
+        destino = urljoin(url_final, html.unescape(m.group(1).decode("utf-8", "replace")))
+        url_final, es_pdf, inicio = _leer_inicio(destino)
     if not es_pdf and red.es_antibots(inicio):
         raise red.FalloRed(ANTIBOTS, "la página es un CAPTCHA o control anti-bots")
     m = RE_TITLE.search(inicio)
@@ -325,6 +337,17 @@ def metadatos(f: dict, oa: dict | None, meta_csv: pd.DataFrame) -> dict:
 # Programa principal
 # ---------------------------------------------------------------------------
 
+def sin_formulas(df: pd.DataFrame) -> pd.DataFrame:
+    """Textos que Excel tomaria como formula (=, +, -, @) quedan como texto con '.
+
+    Los titulos de pagina y las URL vienen de sitios externos: asi nadie del
+    equipo ejecuta una formula al abrir el Excel.
+    """
+    def limpiar(v):
+        return "'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+    return df.map(limpiar)
+
+
 COLUMNAS = ["id", "hoja", "grupo", "coleccion", "titulo_excel", "enfermedad", "prioridad", "tipo_url", "url",
             "doi", "pmcid", "clave", "duplicado_de", "tambien_en", "en_openalex", "is_oa", "oa_url", "pdf_url",
             "estado", "motivo", "descargar", "ruta", "url_descarga", "titulo_pagina", "similitud_titulo",
@@ -399,8 +422,8 @@ def main() -> None:
         hoja.cell(1, 1, "Fuentes por estado y colección")
         hoja.cell(len(por_estado) + 5, 1, "Ruta de descarga (solo las que se descargan)")
         hoja.cell(len(por_estado) + len(rutas) + 9, 1, "Filas que no entran")
-        fuentes.to_excel(xl, sheet_name="Fuentes", index=False)
-        excluidas.to_excel(xl, sheet_name="Excluidas", index=False)
+        sin_formulas(fuentes).to_excel(xl, sheet_name="Fuentes", index=False)
+        sin_formulas(excluidas).to_excel(xl, sheet_name="Excluidas", index=False)
 
     print("\nFuentes por estado y colección:")
     print(por_estado.to_string())
