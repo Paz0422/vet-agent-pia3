@@ -11,9 +11,9 @@ Estados (se aplica el primero que calce, en este orden):
   Escaneado         PDF con menos de 100 caracteres por pagina.
   Pagina equivocada el titulo no aparece en las primeras 3.000 palabras Y la
                     pagina tiene menos de 150 palabras o es casi puro links.
-  Duplicado         mismo texto (normalizado) que otro archivo.
+  Duplicado         mismo texto (normalizado) que otro archivo de la misma coleccion.
   Con pago          aparece "Purchase access", "Access through your institution",
-                    "Log in", "Subscribe" o "Comprar".
+                    "Log in", "Subscribe" o "Comprar" y tiene menos de 1.500 palabras.
   Solo resumen      tiene Abstract pero no Methods/Results/Discussion y menos
                     de 1.500 palabras.
   Revisar titulo    el titulo no aparece y tiene 1.500 palabras o menos
@@ -45,6 +45,7 @@ PALABRAS_MINIMAS = 150       # menos = pagina casi vacia
 PALABRAS_TITULO_OK = 1500    # si el titulo no calza pero hay mas texto que esto, se acepta
 LINEAS_CORTAS = 0.6          # proporcion de lineas de <= 5 palabras = casi puro links/menu
 PALABRAS_RESUMEN = 1500      # "solo resumen" si tiene menos que esto
+PALABRAS_PAGO = 1500         # las frases de pago solo cuentan en textos cortos (los muros de pago lo son)
 FRASES_PAGO = ["Purchase access", "Access through your institution", "Log in", "Subscribe", "Comprar"]
 
 RE_PAGO = re.compile(r"\b(" + "|".join(map(re.escape, FRASES_PAGO)) + r")\b", re.IGNORECASE)
@@ -99,10 +100,11 @@ def clasificar(r: dict, primero_con_huella: dict, plan: set[str]) -> tuple[str, 
         razon = (f"{r['palabras']} palabras" if r["palabras"] < PALABRAS_MINIMAS
                  else f"{r['lineas_cortas']:.0%} de líneas cortas (casi puro links)")
         return PAGINA_EQUIVOCADA, f"título {r['similitud_titulo']}/100 y {razon}"
-    if primero_con_huella[r["huella"]] != r["id"]:
-        return DUPLICADO, f"mismo texto que {primero_con_huella[r['huella']]}"
-    if r["frase_pago"]:
-        return CON_PAGO, f"aparece \"{r['frase_pago']}\""
+    clave = (r["coleccion"], r["huella"])  # una fuente puede estar en dos colecciones (agentes distintos)
+    if primero_con_huella[clave] != r["id"]:
+        return DUPLICADO, f"mismo texto que {primero_con_huella[clave]} en {r['coleccion']}"
+    if r["frase_pago"] and r["palabras"] < PALABRAS_PAGO:
+        return CON_PAGO, f"aparece \"{r['frase_pago']}\" y solo tiene {r['palabras']} palabras"
     if r["tiene_abstract"] and not r["tiene_secciones"] and r["palabras"] < PALABRAS_RESUMEN:
         return SOLO_RESUMEN, f"Abstract sin Methods/Results/Discussion y {r['palabras']} palabras"
     if titulo_no_esta and r["palabras"] <= PALABRAS_TITULO_OK:
@@ -122,18 +124,20 @@ def main() -> None:
     primero = {}
     for r in filas:
         if f"{r['coleccion']}/{r['id']}" in plan or r["ruta"].startswith("e)"):
-            primero.setdefault(r["huella"], r["id"])
+            primero.setdefault((r["coleccion"], r["huella"]), r["id"])
     for r in filas:
-        primero.setdefault(r["huella"], r["id"])
+        primero.setdefault((r["coleccion"], r["huella"]), r["id"])
         r["estado"], r["motivo"] = clasificar(r, primero, plan)
 
     df = pd.DataFrame(filas)
     fecha = time.strftime("%Y-%m-%d %H:%M")
     resumen = pd.crosstab(df.estado, df.coleccion, margins=True, margins_name="Total")
     criterios = pd.DataFrame({"criterio": ["CHARS_POR_PAGINA", "UMBRAL_TITULO", "PALABRAS_TITULO", "PALABRAS_MINIMAS",
-                                           "PALABRAS_TITULO_OK", "LINEAS_CORTAS", "PALABRAS_RESUMEN", "FRASES_PAGO"],
+                                           "PALABRAS_TITULO_OK", "LINEAS_CORTAS", "PALABRAS_RESUMEN", "PALABRAS_PAGO",
+                                           "FRASES_PAGO"],
                               "valor": [CHARS_POR_PAGINA, UMBRAL_TITULO, PALABRAS_TITULO, PALABRAS_MINIMAS,
-                                        PALABRAS_TITULO_OK, LINEAS_CORTAS, PALABRAS_RESUMEN, ", ".join(FRASES_PAGO)]})
+                                        PALABRAS_TITULO_OK, LINEAS_CORTAS, PALABRAS_RESUMEN, PALABRAS_PAGO,
+                                        ", ".join(FRASES_PAGO)]})
     with pd.ExcelWriter(SALIDA, engine="openpyxl") as xl:
         resumen.to_excel(xl, sheet_name="Resumen", startrow=1)
         xl.sheets["Resumen"].cell(1, 1, f"Archivos por estado y colección (validación del {fecha})")
