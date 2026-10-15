@@ -207,6 +207,8 @@ def ya_bajada(f: dict) -> bool:
     if not destino(f).exists():
         return False
     meta, _ = cabecera.leer(destino(f))
+    if meta.get("ruta", "").startswith("e)"):
+        return True  # salio de un PDF local (esta en git): manda sobre cualquier descarga
     return meta.get("url_plan") == f["url_descarga"] and meta.get("ruta") == f["ruta"]
 
 
