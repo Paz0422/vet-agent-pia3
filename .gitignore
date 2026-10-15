@@ -6,5 +6,6 @@ chroma_db/
 corpus/txt/*.txt
 .DS_Store
 corpus/escaneados_*.txt
-corpus/md/*.md
-corpus/md/errores.csv
+corpus/md/**
+!corpus/md/prefiltro.xlsx
+!corpus/md/reporte_validacion.xlsx
