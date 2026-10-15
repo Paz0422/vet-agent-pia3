@@ -50,20 +50,21 @@ def _fila(id_, coleccion, titulo, url, categoria, motivo, origen) -> dict:
             "motivo": motivo, "que_hacer": hacer, "origen": origen}
 
 
-def hoja_preguntas(coleccion: str = "diagnostico_md") -> pd.DataFrame | None:
-    """Preguntas de prueba con los 5 documentos que hoy devuelve el buscador, para que
-    Investigacion marque cuales son aceptables (columna docs_aceptables, separados por ;)."""
+def hoja_preguntas() -> pd.DataFrame | None:
+    """Todas las preguntas de prueba con los 5 documentos que hoy devuelve el buscador en su
+    coleccion, para que Investigacion marque cuales son aceptables (separados por ;)."""
     try:
         from vet_agent.rag.buscar import buscar_crudo  # carga el modelo: solo si hace falta
         q = pd.read_csv(RAIZ / "corpus" / "preguntas_prueba.csv", dtype=str, encoding="utf-8-sig").fillna("")
         filas = []
         for f in q.itertuples():
+            coleccion = getattr(f, "coleccion", "") or "diagnostico_md"
             vistos = []
             for p in buscar_crudo(coleccion, f.pregunta, 5):
                 if p["doc_id"] not in [v[0] for v in vistos]:
                     vistos.append((p["doc_id"], p.get("titulo", "")))
-            filas.append({"pregunta": f.pregunta, "doc_esperado_actual": f.doc_esperado,
-                          f"top5_hoy_en_{coleccion}": " | ".join(f"{d}: {t[:80]}" for d, t in vistos),
+            filas.append({"coleccion": coleccion, "pregunta": f.pregunta, "doc_esperado_actual": f.doc_esperado,
+                          "nota": f.nota, "top5_hoy": " | ".join(f"{d}: {t[:80]}" for d, t in vistos),
                           "docs_aceptables (completar, separados por ;)": "", "comentario (completar)": ""})
         return pd.DataFrame(filas)
     except Exception as e:  # sin coleccion o sin modelo: el resto de la lista igual se genera
