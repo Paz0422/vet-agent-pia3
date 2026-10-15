@@ -9,11 +9,13 @@ Borra:
 - los .md descartados en la validacion (Pagina equivocada, Duplicado, Excluido)
 - las carpetas __pycache__ del repo (fuera de .venv)
 - los logs de corridas anteriores (en corpus/md/_logs/ se deja el mas nuevo)
+- lo que quedaba del pipeline .txt: corpus/txt/, corpus/escaneados_*.txt y la
+  coleccion de Chroma "diagnostico" (todo el corpus ya esta en Markdown)
 
 NUNCA borra (si algo de esto aparece en la lista, se detiene sin borrar nada):
 los .md "OK", corpus/md/_cache/, prefiltro.xlsx, reporte_validacion.xlsx,
-para_investigacion.xlsx, chroma_db/ (todas las colecciones, incluida
-diagnostico_md_v1), corpus/D/ ni corpus/txt/ (los usa la coleccion "diagnostico").
+para_investigacion.xlsx, las colecciones *_md de Chroma (incluida
+diagnostico_md_v1) ni corpus/D/ (los PDF originales).
 """
 import argparse
 import pathlib
@@ -25,8 +27,9 @@ RAIZ = pathlib.Path(__file__).resolve().parents[2]
 MD = RAIZ / "corpus" / "md"
 REPORTE = MD / "reporte_validacion.xlsx"
 SE_BORRAN = {"Página equivocada", "Duplicado", "Excluido"}
+COLECCIONES_TXT = ["diagnostico"]     # colecciones de Chroma del pipeline .txt
 PROTEGIDOS = [MD / "_cache", MD / "prefiltro.xlsx", REPORTE, MD / "para_investigacion.xlsx",
-              RAIZ / "chroma_db", RAIZ / "corpus" / "D", RAIZ / "corpus" / "txt", RAIZ / ".venv", RAIZ / ".git"]
+              RAIZ / "chroma_db", RAIZ / "corpus" / "D", RAIZ / ".venv", RAIZ / ".git"]
 
 
 def _dentro(ruta: pathlib.Path, base: pathlib.Path) -> bool:
@@ -39,8 +42,13 @@ def _peso(ruta: pathlib.Path) -> int:
     return sum(p.stat().st_size for p in ruta.rglob("*") if p.is_file())
 
 
-def a_borrar() -> list[tuple[str, pathlib.Path]]:
-    """(motivo, ruta) de todo lo que se borraria."""
+def _cliente():
+    import chromadb  # solo si hay que tocar Chroma
+    return chromadb.PersistentClient(path=str(RAIZ / "chroma_db"))
+
+
+def a_borrar() -> tuple[list[tuple[str, pathlib.Path]], list[tuple[str, str, int]]]:
+    """(archivos, colecciones): lo que se borraria, con su motivo."""
     lista = []
     if (MD / "_tmp_pdf").exists():
         lista.append(("PDF temporales", MD / "_tmp_pdf"))
@@ -57,7 +65,17 @@ def a_borrar() -> list[tuple[str, pathlib.Path]]:
     lista += [("log de una corrida anterior", p) for p in logs[:-1]]
     lista += [("log de una corrida anterior", p) for p in RAIZ.rglob("*.log")
               if not _dentro(p, RAIZ / ".venv") and not _dentro(p, RAIZ / ".git")]
-    return lista
+    if (RAIZ / "corpus" / "txt").exists():
+        lista.append(("pipeline .txt", RAIZ / "corpus" / "txt"))
+    lista += [("pipeline .txt", p) for p in (RAIZ / "corpus").glob("escaneados_*.txt")]
+
+    colecciones = []
+    if (RAIZ / "chroma_db").exists():
+        existentes = {c.name for c in _cliente().list_collections()}
+        for nombre in COLECCIONES_TXT:
+            if nombre in existentes:
+                colecciones.append(("colección Chroma del pipeline .txt", nombre, _cliente().get_collection(nombre).count()))
+    return lista, colecciones
 
 
 def ok_protegidos() -> set[pathlib.Path]:
@@ -73,12 +91,14 @@ def main() -> None:
     parser.add_argument("--prueba", action="store_true", help="solo listar, sin borrar nada")
     args = parser.parse_args()
 
-    lista = a_borrar()
+    lista, colecciones = a_borrar()
     oks = ok_protegidos()
     peligro = [p for _, p in lista if any(_dentro(p, b) for b in PROTEGIDOS) or p.resolve() in oks]
+    peligro += [n for _, n, _ in colecciones if n.endswith("_md") or "_md_" in n]
     if peligro:
-        raise SystemExit(f"ALTO: la lista incluye archivos protegidos, no se borra nada: {peligro}")
+        raise SystemExit(f"ALTO: la lista incluye cosas protegidas, no se borra nada: {peligro}")
 
+    marca = "[prueba] " if args.prueba else ""
     total = 0
     por_motivo: dict[str, list[int]] = {}
     for motivo, ruta in lista:
@@ -87,18 +107,24 @@ def main() -> None:
         por_motivo.setdefault(motivo, [0, 0])
         por_motivo[motivo][0] += 1
         por_motivo[motivo][1] += peso
-        print(f"{'[prueba] ' if args.prueba else ''}{motivo:32} {peso / 1024:9.1f} KB  {ruta.relative_to(RAIZ)}")
+        print(f"{marca}{motivo:32} {peso / 1024:9.1f} KB  {ruta.relative_to(RAIZ)}")
+    for motivo, nombre, pedazos in colecciones:
+        print(f"{marca}{motivo:32} {pedazos:6} pedazos  chroma_db: {nombre}")
     print("\nResumen:")
     for motivo, (n, peso) in por_motivo.items():
         print(f"   {motivo:32} {n:4} elementos  {peso / 2**20:7.2f} MB")
-    print(f"   {'TOTAL':32} {len(lista):4} elementos  {total / 2**20:7.2f} MB")
+    if colecciones:
+        print(f"   {'colecciones de Chroma':32} {len(colecciones):4} elementos  ({', '.join(n for _, n, _ in colecciones)})")
+    print(f"   {'TOTAL':32} {len(lista) + len(colecciones):4} elementos  {total / 2**20:7.2f} MB en disco")
 
     if args.prueba:
         print("\nModo de prueba: no se borró nada.")
         return
     for _, ruta in lista:
         shutil.rmtree(ruta) if ruta.is_dir() else ruta.unlink(missing_ok=True)
-    print(f"\nBorrados {len(lista)} elementos ({total / 2**20:.2f} MB).")
+    for _, nombre, _ in colecciones:
+        _cliente().delete_collection(nombre)
+    print(f"\nBorrados {len(lista)} archivos/carpetas ({total / 2**20:.2f} MB) y {len(colecciones)} colecciones de Chroma.")
 
 
 if __name__ == "__main__":
