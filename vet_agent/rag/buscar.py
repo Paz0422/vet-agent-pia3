@@ -12,17 +12,24 @@ _ef = embedding_functions.SentenceTransformerEmbeddingFunction(
 _cliente = chromadb.PersistentClient(path=str(RAIZ / "chroma_db"))
 
 
-def buscar_crudo(coleccion: str, pregunta: str, k: int = 5) -> list[dict]:
-    """Devuelve los k pedazos como lista de dicts (lo usa la Tarea 5)."""
+# El proyecto es de influenza aviar: por defecto se dejan fuera los documentos de cerdos
+SIN_PORCINO = {"enfermedad": {"$ne": "porcino"}}
+
+
+def buscar_crudo(coleccion: str, pregunta: str, k: int = 5, excluir_porcino: bool = True) -> list[dict]:
+    """Devuelve los k pedazos como lista de dicts (lo usa la Tarea 5).
+
+    Con excluir_porcino=True (por defecto) no devuelve pedazos con enfermedad "porcino".
+    """
     col = _cliente.get_collection(coleccion, embedding_function=_ef)
-    r = col.query(query_texts=[pregunta], n_results=k)
+    r = col.query(query_texts=[pregunta], n_results=k, where=SIN_PORCINO if excluir_porcino else None)
     return [{"texto": t, **m} for t, m in zip(r["documents"][0], r["metadatas"][0])]
 
 
-def buscar(coleccion: str, pregunta: str, k: int = 5) -> str:
+def buscar(coleccion: str, pregunta: str, k: int = 5, excluir_porcino: bool = True) -> str:
     """Devuelve los k pedazos como un solo texto listo para el prompt del agente."""
     partes = []
-    for p in buscar_crudo(coleccion, pregunta, k):
+    for p in buscar_crudo(coleccion, pregunta, k, excluir_porcino):
         cabecera = f"[{p['doc_id']}] {p.get('institucion', '')} {p.get('anio', '')} — {p.get('titulo', '')}"
         partes.append(cabecera + "\n" + p["texto"])
     return "\n\n---\n\n".join(partes)
