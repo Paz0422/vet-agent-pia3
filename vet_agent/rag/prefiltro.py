@@ -281,9 +281,13 @@ def revisar(f: dict, oa: dict | None, epmc_abiertos: set[str]) -> dict:
         candidatos.append((RUTA_PDF_OA, oa["pdf_url"]))
     if oa and oa["oa_url"] and oa["oa_url"] != oa["pdf_url"]:
         candidatos.append((RUTA_WEB, oa["oa_url"]))
-    es_pmc_web = "ncbi.nlm.nih.gov" in f["url"]       # la web de PMC tiene CAPTCHA: nunca se usa
-    if not urlparse(f["url"]).netloc.endswith("doi.org") and not es_pmc_web:
+    if not urlparse(f["url"]).netloc.endswith("doi.org"):
         candidatos.append((RUTA_PDF if f["tipo_url"] == "PDF directo" else RUTA_WEB, f["url"]))
+    # la web de PMC tiene CAPTCHA: nunca se usa (su texto llega por Europe PMC, ruta a)
+    pmc_web = [u for _, u in candidatos if "ncbi.nlm.nih.gov" in u]
+    candidatos = [(r, u) for r, u in candidatos if "ncbi.nlm.nih.gov" not in u]
+    if pmc_web and not candidatos:
+        fallos.append((SIN_RUTA, "solo hay la web de PMC, que no se usa (CAPTCHA); falta texto en Europe PMC"))
     if not candidatos and not fallos:
         fallos.append((SIN_RUTA, "OpenAlex dice acceso abierto pero no da ninguna URL"))
 
