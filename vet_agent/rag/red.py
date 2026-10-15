@@ -9,7 +9,9 @@ Reglas que se cumplen siempre:
 
 Es seguro usarlo desde varios hilos a la vez (cada dominio tiene su candado).
 """
+import ipaddress
 import re
+import socket
 import threading
 import time
 from urllib.parse import urljoin, urlparse
@@ -50,7 +52,28 @@ _candados: dict[str, threading.Lock] = {}        # un candado por dominio
 _candado_global = threading.Lock()
 _ultimo_pedido: dict[str, float] = {}
 _robots: dict[str, RobotFileParser] = {}
-_rechaza_bots: set[str] = set()                  # robots.txt respondio 401/403
+_motivo_robots: dict[str, str] = {}              # por que se bloqueo un dominio entero
+_destinos_ok: dict[str, bool] = {}               # host -> es una direccion publica
+
+
+def _destino_publico(url: str) -> None:
+    """Solo http/https hacia direcciones publicas (nunca la red local ni este PC).
+
+    Evita que una URL o una redireccion de un sitio externo haga que el
+    programa pida cosas a localhost, al router o a otras maquinas internas.
+    """
+    partes = urlparse(url)
+    if partes.scheme not in ("http", "https") or not partes.hostname:
+        raise FalloRed(CAIDO, f"URL no permitida ({partes.scheme or 'sin esquema'})")
+    host = partes.hostname
+    if host not in _destinos_ok:
+        try:
+            ips = {info[4][0] for info in socket.getaddrinfo(host, None)}
+        except socket.gaierror:
+            raise FalloRed(CAIDO, f"{host}: el dominio no existe")
+        _destinos_ok[host] = all(ipaddress.ip_address(ip.split("%")[0]).is_global for ip in ips)
+    if not _destinos_ok[host]:
+        raise FalloRed(CAIDO, f"{host}: apunta a una red privada o local (no se pide)")
 
 
 def _sesion() -> requests.Session:
@@ -71,6 +94,7 @@ def pedir(url: str, *, timeout: float = 30, stream: bool = False, reintentos: in
 
     Reintenta (con pausa creciente) solo si no hubo respuesta o fue un 5xx.
     """
+    _destino_publico(url)
     dominio = urlparse(url).netloc
     espera = ESPERA_POR_DOMINIO.get(dominio, ESPERA)
     if dominio in _robots:  # si robots.txt pide mas pausa (Crawl-delay), se respeta
@@ -119,11 +143,13 @@ def permitido(url: str) -> bool:
             if r is not None and r.status_code == 200:
                 rp.parse(r.text.splitlines())
             elif r is not None and r.status_code in (401, 403):
-                _rechaza_bots.add(dominio)
+                _motivo_robots[dominio] = f"{dominio} rechaza bots (su robots.txt responde HTTP {r.status_code})"
                 rp.disallow_all = True   # criterio prudente: si niega el robots.txt, no se entra
             elif r is not None and 400 <= r.status_code < 500:
                 rp.allow_all = True      # no hay robots.txt: se permite todo
             else:
+                estado = f"HTTP {r.status_code}" if r is not None else "sin respuesta"
+                _motivo_robots[dominio] = f"no se pudo leer el robots.txt de {dominio} ({estado})"
                 rp.disallow_all = True   # no se pudo leer (caido, 5xx): mejor no entrar
             _robots[dominio] = rp
     return _robots[dominio].can_fetch(USER_AGENT, url)
@@ -132,8 +158,7 @@ def permitido(url: str) -> bool:
 def _revisar_robots(url: str) -> None:
     if not permitido(url):
         dominio = urlparse(url).netloc
-        motivo = (f"{dominio} rechaza bots (su robots.txt responde 403)" if dominio in _rechaza_bots
-                  else f"robots.txt de {dominio} no permite esta ruta")
+        motivo = _motivo_robots.get(dominio, f"robots.txt de {dominio} no permite esta ruta")
         raise FalloRed(BLOQUEADO_ROBOTS, motivo)
 
 
@@ -153,6 +178,7 @@ def seguir(url: str, *, timeout: float = 30, stream: bool = False, reintentos: i
             url = urljoin(url, r.headers["Location"])
             continue
         final = urlparse(url)
+        dominio = final.netloc
         if RE_LOGIN.search(final.path):
             r.close()
             raise FalloRed(PORTADA_LOGIN, "redirige a una página de login")
@@ -161,13 +187,13 @@ def seguir(url: str, *, timeout: float = 30, stream: bool = False, reintentos: i
             raise FalloRed(PORTADA_LOGIN, "redirige a la portada del sitio")
         if r.status_code in (401, 407):
             r.close()
-            raise FalloRed(PORTADA_LOGIN, f"pide iniciar sesión (HTTP {r.status_code})")
+            raise FalloRed(PORTADA_LOGIN, f"{dominio} pide iniciar sesión (HTTP {r.status_code})")
         if r.status_code == 402:
             r.close()
-            raise FalloRed(CON_PAGO, "pide pago (HTTP 402)")
+            raise FalloRed(CON_PAGO, f"{dominio} pide pago (HTTP 402)")
         if r.status_code >= 400:
             r.close()
-            raise FalloRed(CAIDO, f"no disponible (HTTP {r.status_code})")
+            raise FalloRed(CAIDO, f"{dominio} no disponible (HTTP {r.status_code})")
         return url, r
     raise FalloRed(CAIDO, "demasiadas redirecciones")
 
