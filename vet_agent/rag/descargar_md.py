@@ -14,8 +14,12 @@ Si falla, se anota en corpus/md/errores.csv y se sigue con la siguiente.
 No se intenta saltar bloqueos, CAPTCHAs, logins ni paywalls.
 
 Como se reparte el trabajo:
-- Descargas: hasta 8 a la vez, pero un solo pedido a la vez por dominio
-  (al menos 2 s entre pedidos y una sesion HTTP por dominio; eso lo hace red.py).
+- Descargas: una cola por dominio y hasta 8 dominios a la vez; dentro de un
+  dominio, una descarga tras otra (al menos 2 s entre pedidos, 1 s en las APIs
+  de Europe PMC y OpenAlex, y una sesion HTTP por dominio; eso lo hace red.py).
+  Las colas mas largas (Europe PMC) parten primero, asi no frenan a las demas.
+- El XML/HTML ya bajado queda en corpus/md/_cache/descargas/: si hay que volver
+  a convertir o limpiar, no se pide de nuevo a internet (--sin-cache lo ignora).
 - Conversion de PDF: en un grupo de procesos aparte (usa CPU, no red), asi
   las descargas no esperan a que termine cada conversion.
 - Los PDF se bajan por partes al disco y se borran apenas se convierten.
@@ -24,13 +28,17 @@ Como se reparte el trabajo:
   Si la ruta o la URL cambio en el prefiltro, se vuelve a bajar.
 El .md queda "crudo": despues se limpia con limpiar_texto.
 """
+import argparse
 import csv
 import html
+import json
 import os
 import pathlib
+import queue
 import time
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, ThreadPoolExecutor, wait
-from urllib.parse import urljoin
+from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from urllib.parse import urljoin, urlparse
 
 import defusedxml.ElementTree as ET  # como xml.etree, pero rechaza XML malicioso
 import pandas as pd
@@ -45,7 +53,9 @@ PREFILTRO = RAIZ / "corpus" / "md" / "prefiltro.xlsx"
 SALIDA = RAIZ / "corpus" / "md"
 TMP_PDF = SALIDA / "_tmp_pdf"     # PDF a medio convertir (se borran solos; limpiar.py borra restos)
 LOGS = SALIDA / "_logs"
-HILOS = 8                         # descargas a la vez
+CACHE_DESCARGAS = SALIDA / "_cache" / "descargas"  # XML/HTML ya bajados (no PDF)
+USAR_CACHE = True
+HILOS = 8                         # dominios a la vez (cada dominio, una descarga a la vez)
 PROCESOS = max(1, min(4, (os.cpu_count() or 2) - 1))  # conversiones de PDF a la vez
 TIMEOUT = 30
 REINTENTOS = 2
@@ -200,10 +210,33 @@ def ya_bajada(f: dict) -> bool:
     return meta.get("url_plan") == f["url_descarga"] and meta.get("ruta") == f["ruta"]
 
 
+def _cache_descarga(f: dict) -> tuple[pathlib.Path, pathlib.Path]:
+    nombre = f"{f['coleccion']}_{f['id']}"
+    return CACHE_DESCARGAS / f"{nombre}.bin", CACHE_DESCARGAS / f"{nombre}.json"
+
+
+def bajar_con_cache(f: dict, archivo_pdf: pathlib.Path) -> tuple[str, bytes | None]:
+    """Como bajar(), pero el XML/HTML ya bajado desde la misma URL se lee del disco.
+
+    Los PDF no se guardan en el cache (pesan mucho y no van en el repo).
+    """
+    datos, info = _cache_descarga(f)
+    if USAR_CACHE and datos.exists() and info.exists():
+        guardado = json.loads(info.read_text(encoding="utf-8"))
+        if guardado.get("url_plan") == f["url_descarga"]:
+            return guardado["url_final"], datos.read_bytes()
+    url_final, contenido = bajar(f["url_descarga"], archivo_pdf)
+    if contenido is not None:
+        CACHE_DESCARGAS.mkdir(parents=True, exist_ok=True)
+        datos.write_bytes(contenido)
+        info.write_text(json.dumps({"url_plan": f["url_descarga"], "url_final": url_final}), encoding="utf-8")
+    return url_final, contenido
+
+
 def bajar_fuente(f: dict) -> tuple[str, object, str]:
     """Paso de red de una fuente: ("md", markdown, url_final) o ("pdf", ruta_pdf, url_final)."""
     archivo_pdf = TMP_PDF / f"{f['coleccion']}_{f['id']}.pdf"
-    url_final, contenido = bajar(f["url_descarga"], archivo_pdf)
+    url_final, contenido = bajar_con_cache(f, archivo_pdf)
     if contenido is None:
         return "pdf", archivo_pdf, url_final
     if f["ruta"] == RUTA_EPMC:
@@ -234,43 +267,85 @@ def _error(f: dict, estado: str, motivo: str) -> dict:
             "url": f["url_descarga"], "estado": estado, "motivo": motivo}
 
 
+def _trabajar_cola(fuentes: list[dict], resultados: queue.Queue) -> None:
+    """Un trabajador por dominio: baja sus fuentes una tras otra (red.py pone la pausa)."""
+    for f in fuentes:
+        try:
+            resultados.put(("bajada", f, bajar_fuente(f)))
+        except red.FalloRed as e:
+            resultados.put(("error", f, (e.estado, e.motivo)))
+        except Exception as e:  # nunca se detiene: se anota y sigue
+            resultados.put(("error", f, ("Error", f"{type(e).__name__}: {e}")))
+
+
 def main() -> None:
+    global SALIDA, TMP_PDF, USAR_CACHE
+    parser = argparse.ArgumentParser(description="Descarga en Markdown de las fuentes del prefiltro")
+    parser.add_argument("--salida", help="otra carpeta de salida (para pruebas; por defecto corpus/md)")
+    parser.add_argument("--sin-cache", action="store_true", help="no leer el cache de descargas")
+    args = parser.parse_args()
+    if args.salida:
+        SALIDA, TMP_PDF = pathlib.Path(args.salida), pathlib.Path(args.salida) / "_tmp_pdf"
+    USAR_CACHE = not args.sin_cache
+
     fuentes = pd.read_excel(PREFILTRO, sheet_name="Fuentes", dtype=str).fillna("")
     fuentes = fuentes[fuentes.descargar == "sí"].to_dict("records")
     pendientes = [f for f in fuentes if not ya_bajada(f)]
+    colas = defaultdict(list)  # una cola por dominio
+    for f in pendientes:
+        colas[urlparse(f["url_descarga"]).netloc].append(f)
+    orden = sorted(colas, key=lambda d: -len(colas[d]))  # las colas mas largas parten primero
     print(f"{len(fuentes)} fuentes para descargar | ya bajadas {len(fuentes) - len(pendientes)} | "
-          f"pendientes {len(pendientes)} | {HILOS} descargas y {PROCESOS} conversiones de PDF a la vez")
+          f"pendientes {len(pendientes)} en {len(colas)} dominios | {HILOS} dominios y "
+          f"{PROCESOS} conversiones de PDF a la vez")
 
     inicio = time.monotonic()
-    errores, ok = [], 0
+    errores, ok, terminadas = [], 0, 0
+    resultados: queue.Queue = queue.Queue()
+    conversiones = {}
     barra = tqdm(total=len(pendientes), unit="doc", desc="Descargando")
+
+    def terminar(f, error=None):
+        nonlocal ok, terminadas
+        if error:
+            errores.append(_error(f, *error))
+        else:
+            ok += 1
+        terminadas += 1
+        barra.set_postfix(ok=ok, fallidos=len(errores))
+        barra.update()
+
     with ThreadPoolExecutor(HILOS) as hilos, ProcessPoolExecutor(PROCESOS) as procesos:
-        en_curso = {hilos.submit(bajar_fuente, f): ("bajar", f, None) for f in pendientes}
-        while en_curso:
-            listos, _ = wait(en_curso, return_when=FIRST_COMPLETED)
-            for t in listos:
-                paso, f, extra = en_curso.pop(t)
+        for d in orden:
+            hilos.submit(_trabajar_cola, colas[d], resultados)
+        while terminadas < len(pendientes):
+            try:
+                tipo, f, dato = resultados.get(timeout=0.2)
+            except queue.Empty:
+                tipo = None
+            if tipo == "error":
+                terminar(f, dato)
+            elif tipo == "bajada":
+                clase, contenido, url_final = dato
+                if clase == "pdf":  # la conversion va al grupo de procesos; la red sigue
+                    conversiones[procesos.submit(convertir_pdf, str(contenido))] = (f, contenido, url_final)
+                else:
+                    try:
+                        escribir(f, contenido, url_final, "")
+                        terminar(f)
+                    except red.FalloRed as e:
+                        terminar(f, (e.estado, e.motivo))
+            for c in [c for c in conversiones if c.done()]:
+                f, archivo_pdf, url_final = conversiones.pop(c)
+                archivo_pdf.unlink(missing_ok=True)  # el PDF se borra apenas se convierte
                 try:
-                    if paso == "bajar":
-                        tipo, dato, url_final = t.result()
-                        if tipo == "pdf":  # la conversion va al grupo de procesos; la red sigue
-                            en_curso[procesos.submit(convertir_pdf, str(dato))] = ("convertir", f, (dato, url_final))
-                            continue
-                        escribir(f, dato, url_final, "")
-                    else:
-                        archivo_pdf, url_final = extra
-                        try:
-                            md, paginas = t.result()
-                        finally:
-                            archivo_pdf.unlink(missing_ok=True)  # el PDF se borra apenas se convierte
-                        escribir(f, md, url_final, paginas)
-                    ok += 1
+                    md, paginas = c.result()
+                    escribir(f, md, url_final, paginas)
+                    terminar(f)
                 except red.FalloRed as e:
-                    errores.append(_error(f, e.estado, e.motivo))
-                except Exception as e:  # nunca se detiene: se anota y sigue
-                    errores.append(_error(f, SIN_TEXTO if paso == "convertir" else "Error", f"{type(e).__name__}: {e}"))
-                barra.set_postfix(ok=ok, fallidos=len(errores))
-                barra.update()
+                    terminar(f, (e.estado, e.motivo))
+                except Exception as e:
+                    terminar(f, (SIN_TEXTO, f"{type(e).__name__}: {e}"))
     barra.close()
     segundos = time.monotonic() - inicio
 

@@ -22,7 +22,8 @@ import requests
 
 USER_AGENT = "vet-agent-pia3 (proyecto universitario UTEM; ppereza@utem.cl)"
 ESPERA = 2.0                                  # segundos minimos entre pedidos al mismo dominio
-ESPERA_POR_DOMINIO = {"api.openalex.org": 1.0}  # APIs que permiten ir mas rapido
+# APIs hechas para programas: van mas rapido que los sitios web (que siguen con 2 s)
+ESPERA_POR_DOMINIO = {"api.openalex.org": 1.0, "www.ebi.ac.uk": 1.0}
 MAX_REDIRECCIONES = 5
 
 # URL de login: /login, /signin, /sign-in, /auth (palabra completa: /authors no cuenta)
