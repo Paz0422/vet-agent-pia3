@@ -7,9 +7,16 @@ from chromadb.utils import embedding_functions
 RAIZ = pathlib.Path(__file__).resolve().parents[2]
 RUTA_DB = str(RAIZ / "chroma_db")
 
-_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="paraphrase-multilingual-MiniLM-L12-v2")
+_ef = None  # el modelo de embeddings se carga la primera vez que se busca (no al importar)
 _cliente = chromadb.PersistentClient(path=str(RAIZ / "chroma_db"))
+
+
+def _embedding():
+    global _ef
+    if _ef is None:
+        _ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name="paraphrase-multilingual-MiniLM-L12-v2")
+    return _ef
 
 
 # El proyecto es de influenza aviar: por defecto se dejan fuera los documentos de cerdos
@@ -21,7 +28,7 @@ def buscar_crudo(coleccion: str, pregunta: str, k: int = 5, excluir_porcino: boo
 
     Con excluir_porcino=True (por defecto) no devuelve pedazos con enfermedad "porcino".
     """
-    col = _cliente.get_collection(coleccion, embedding_function=_ef)
+    col = _cliente.get_collection(coleccion, embedding_function=_embedding())
     r = col.query(query_texts=[pregunta], n_results=k, where=SIN_PORCINO if excluir_porcino else None)
     return [{"texto": t, **m} for t, m in zip(r["documents"][0], r["metadatas"][0])]
 
