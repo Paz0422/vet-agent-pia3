@@ -3,13 +3,17 @@ import pathlib
 import chromadb
 import pandas as pd
 from chromadb.utils import embedding_functions
+import sys
+RAIZ = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(RAIZ))
 from vet_agent.rag.chunking import cortar
+
 
 MODELO = "paraphrase-multilingual-MiniLM-L12-v2" # entiende español e inglés, gratis, corre en el PC
 COLECCION = "diagnostico"
 
 ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODELO)
-cliente = chromadb.PersistentClient(path="chroma_db")
+cliente = chromadb.PersistentClient(path=str(RAIZ / "chroma_db"))
 
 # se borra y se crea de nuevo, así cada corrida parte limpia
 try:
@@ -18,11 +22,11 @@ except Exception:
     pass
 col = cliente.create_collection(COLECCION, embedding_function=ef)
 
-meta = pd.read_csv("corpus/metadatos.csv", dtype=str, encoding="utf-8-sig").fillna("").set_index("id")
+meta = pd.read_csv(RAIZ / "corpus" / "metadatos.csv", dtype=str, encoding="utf-8-sig").fillna("").set_index("id")
 
 ids, textos, metadatos = [], [], []
 
-for txt in sorted(pathlib.Path("corpus/txt").glob("D*.txt")):
+for txt in sorted((RAIZ / "corpus" / "txt").glob("D*.txt")):
     doc_id = txt.stem
     if doc_id not in meta.index:
         print("Falta en metadatos.csv:", doc_id)
