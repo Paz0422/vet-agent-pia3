@@ -6,15 +6,19 @@ Uso (raiz del repo):
 Lee corpus/fuentes/Revision_fuentes_scraping_PIA3.xlsx (no lo modifica) y
 escribe corpus/md/prefiltro.xlsx con una fila por fuente y:
 - si es duplicada (DOI o URL normalizados),
-- si tiene acceso abierto (OpenAlex) y texto completo en Europe PMC,
+- si tiene acceso abierto (OpenAlex) y texto completo en Europe PMC
+  (Europe PMC va siempre primero: si tiene el texto, esa es la ruta),
 - si la URL responde, si es portada/login o si robots.txt la bloquea,
 - si el <title> de la pagina se parece al titulo esperado,
 - la ruta de descarga elegida (a, b, c o d) y la URL que se va a bajar.
 
 Solo hace pedidos livianos: consultas a las APIs por lotes, cabeceras de
 las URL y, en paginas web, los primeros 20 KB para leer el <title>.
+Las respuestas de OpenAlex y Europe PMC quedan en corpus/md/_cache/ (JSON),
+asi una corrida nueva no las vuelve a pedir.
 """
 import html
+import json
 import pathlib
 import re
 import time
@@ -30,10 +34,17 @@ RAIZ = pathlib.Path(__file__).resolve().parents[2]
 EXCEL = RAIZ / "corpus" / "fuentes" / "Revision_fuentes_scraping_PIA3.xlsx"
 METADATOS = RAIZ / "corpus" / "metadatos.csv"
 SALIDA = RAIZ / "corpus" / "md" / "prefiltro.xlsx"
+CACHE = RAIZ / "corpus" / "md" / "_cache"   # respuestas de OpenAlex y Europe PMC (JSON)
 CORREO = "ppereza@utem.cl"
 
 PRIORIDADES = {"Alta", "Media"}
 AGENTE_EXCLUIDO = "Moderador-verificador"   # papers de LLM, no son base veterinaria
+# Excluidos a mano (y van a la lista para Investigacion)
+EXCLUIDOS_A_MANO = {"BIO-139": "Excluido a mano: paper de LLM/salud mental en bioseguridad (para revisar por Investigación)"}
+# Temas que no parecen base veterinaria: se marcan para Investigacion, sin excluir
+RE_TEMA_SIGLAS = re.compile(r"\b(LLMs?|RAG)\b")   # en mayusculas, para no confundir "rag" o "drag"
+RE_TEMA_PALABRAS = re.compile(r"\b(large )?language models?\b|\bchat ?bots?\b|\bsalud mental\b|\bmental health\b",
+                              re.IGNORECASE)
 COLECCION_EJE = {"A": "climatico", "D": "diagnostico", "C": "bioseguridad", "E": "bioseguridad", "F": "bioseguridad"}
 COLECCION_AGENTE = {"Climático-ambiental": "climatico", "Diagnóstico": "diagnostico", "Bioseguridad": "bioseguridad"}
 
@@ -55,8 +66,6 @@ URL_EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/{}/fullTextXML"
 DUPLICADO, SIN_OPENALEX, SIN_RUTA, ANTIBOTS = "Duplicado", "No encontrado en OpenAlex", "Sin ruta", "Bloqueo anti-bots"
 REVISAR_TITULO, OK = "Revisar título", "OK"
 SE_DESCARGAN = {OK, REVISAR_TITULO}
-# Si quedaron asi, se busca el DOI en Europe PMC por si esta completo ahi
-SE_RESCATAN = {red.BLOQUEADO_ROBOTS, red.CAIDO, red.RECHAZADO, red.CON_PAGO, SIN_RUTA}
 
 RE_DOI = re.compile(r"10\.\d{4,9}/[^\s?#&\"'<>]+", re.IGNORECASE)
 RE_PMCID = re.compile(r"\bPMC\d{4,9}\b", re.IGNORECASE)
@@ -107,11 +116,31 @@ def motivo_exclusion(f: dict) -> str:
     """Por que una fila NO entra (vacio = entra)."""
     if f["prioridad"] not in PRIORIDADES:
         return f"Prioridad: {f['prioridad'] or 'vacía'}"
+    if f["id"] in EXCLUIDOS_A_MANO:
+        return EXCLUIDOS_A_MANO[f["id"]]
     if f["grupo"] == AGENTE_EXCLUIDO:
         return "Agente Moderador-verificador (papers de LLM)"
     if not f["coleccion"]:
         return f"Sin colección para {f['grupo']}"
     return ""
+
+
+def tema_a_revisar(titulo: str) -> str:
+    """Si el titulo habla de LLM, RAG, chatbots o salud mental (no se excluye: solo se avisa)."""
+    m = RE_TEMA_SIGLAS.search(titulo) or RE_TEMA_PALABRAS.search(titulo)
+    return f"el título menciona \"{m.group(0)}\" (¿es base veterinaria?)" if m else ""
+
+
+def url_leychile(url: str) -> str:
+    """bcn.cl/leychile/navegar?idNorma=X -> vista para imprimir (la norma completa en una pagina)."""
+    p = urlparse(url)
+    if "bcn.cl" not in p.netloc or not p.path.lower().rstrip("/").endswith("/leychile/navegar"):
+        return url
+    q = dict(parse_qsl(p.query))
+    if "idNorma" not in q:
+        return url
+    extra = f"&idVersion={q['idVersion']}" if q.get("idVersion") else ""
+    return f"https://www.bcn.cl/leychile/Navegar/imprimir?idNorma={q['idNorma']}{extra}"
 
 
 # ---------------------------------------------------------------------------
@@ -177,24 +206,42 @@ def marcar_duplicados(df: pd.DataFrame) -> None:
 # 3. APIs por lotes: OpenAlex (acceso abierto) y Europe PMC (texto completo)
 # ---------------------------------------------------------------------------
 
+def _cache_leer(nombre: str) -> dict:
+    ruta = CACHE / f"{nombre}.json"
+    return json.loads(ruta.read_text(encoding="utf-8")) if ruta.exists() else {}
+
+
+def _cache_guardar(nombre: str, datos: dict) -> None:
+    CACHE.mkdir(parents=True, exist_ok=True)
+    (CACHE / f"{nombre}.json").write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def consultar_openalex(dois: list[str]) -> dict[str, dict]:
-    """DOI -> datos de OpenAlex. Lotes de 50 DOI, 1 s entre consultas."""
-    datos = {}
+    """DOI -> datos de OpenAlex. Lotes de 50 DOI, 1 s entre consultas.
+
+    Las respuestas (tambien "no encontrado" = null) quedan en corpus/md/_cache/openalex.json,
+    asi una corrida nueva solo consulta los DOI que no conoce.
+    """
+    cache = _cache_leer("openalex")
     normales = [d for d in dois if "|" not in d and "," not in d]  # | y , rompen el filtro
-    for i in range(0, len(normales), LOTE_OPENALEX):
-        lote = normales[i:i + LOTE_OPENALEX]
+    faltan = [d for d in normales if d not in cache]
+    print(f"   OpenAlex: {len(normales) - len(faltan)} en caché, {len(faltan)} por consultar")
+    for i in range(0, len(faltan), LOTE_OPENALEX):
+        lote = faltan[i:i + LOTE_OPENALEX]
         try:
             _, r = red.seguir("https://api.openalex.org/works", timeout=30, reintentos=2, params={
                 "filter": "doi:" + "|".join(lote), "per_page": LOTE_OPENALEX, "mailto": CORREO,
                 "select": "doi,display_name,publication_year,open_access,best_oa_location,ids,primary_location"})
             resultados = r.json()["results"]
         except (red.FalloRed, ValueError, KeyError) as e:
-            print(f"   AVISO: falló el lote {i // LOTE_OPENALEX + 1} de OpenAlex ({e})")
+            print(f"   AVISO: falló un lote de OpenAlex ({e}); no se guarda en caché")
             continue
+        for d in lote:
+            cache[d] = None  # si no viene en la respuesta, OpenAlex no lo conoce
         for w in resultados:
             doi = (w.get("doi") or "").lower().removeprefix("https://doi.org/")
             fuente = ((w.get("primary_location") or {}).get("source") or {})
-            datos[doi] = {
+            cache[doi] = {
                 "is_oa": bool((w.get("open_access") or {}).get("is_oa")),
                 "oa_url": (w.get("open_access") or {}).get("oa_url") or "",
                 "pdf_url": (w.get("best_oa_location") or {}).get("pdf_url") or "",
@@ -203,53 +250,64 @@ def consultar_openalex(dois: list[str]) -> dict[str, dict]:
                 "anio": str(w.get("publication_year") or ""),
                 "revista": fuente.get("display_name") or fuente.get("host_organization_name") or "",
             }
-        print(f"   OpenAlex: lote {i // LOTE_OPENALEX + 1} de {-(-len(normales) // LOTE_OPENALEX)}")
+        _cache_guardar("openalex", cache)
     raros = sorted(set(dois) - set(normales))
     if raros:
         print("   AVISO: DOI con | o , sin consultar:", raros)
-    return datos
+    return {d: cache[d] for d in normales if cache.get(d)}
+
+
+def _buscar_europepmc(consultas: list[str], tipo: str) -> list[dict] | None:
+    """Una busqueda en Europe PMC (varias condiciones unidas por OR). None si fallo."""
+    try:
+        _, r = red.seguir("https://www.ebi.ac.uk/europepmc/webservices/rest/search", timeout=30, reintentos=2,
+                          params={"query": " OR ".join(consultas), "resultType": tipo,
+                                  "format": "json", "pageSize": 100})
+        return r.json()["resultList"]["result"]
+    except (red.FalloRed, ValueError, KeyError) as e:
+        print(f"   AVISO: falló un lote de Europe PMC ({e}); no se guarda en caché")
+        return None
 
 
 def consultar_europepmc(pmcids: list[str]) -> set[str]:
-    """PMCID que Europe PMC entrega completos (isOpenAccess = Y)."""
-    abiertos = set()
-    for i in range(0, len(pmcids), LOTE_EUROPEPMC):
-        lote = pmcids[i:i + LOTE_EUROPEPMC]
-        try:
-            _, r = red.seguir("https://www.ebi.ac.uk/europepmc/webservices/rest/search", timeout=30, reintentos=2,
-                              params={"query": " OR ".join(f"PMCID:{p}" for p in lote),
-                                      "resultType": "lite", "format": "json", "pageSize": 100})
-            resultados = r.json()["resultList"]["result"]
-        except (red.FalloRed, ValueError, KeyError) as e:
-            print(f"   AVISO: falló un lote de Europe PMC ({e})")
+    """PMCID que Europe PMC entrega completos (isOpenAccess = Y). Con caché."""
+    cache = _cache_leer("europepmc_pmcid")  # pmcid -> True/False
+    faltan = [p for p in pmcids if p not in cache]
+    for i in range(0, len(faltan), LOTE_EUROPEPMC):
+        lote = faltan[i:i + LOTE_EUROPEPMC]
+        resultados = _buscar_europepmc([f"PMCID:{p}" for p in lote], "lite")
+        if resultados is None:
             continue
-        abiertos |= {x["pmcid"] for x in resultados if x.get("pmcid") and x.get("isOpenAccess") == "Y"}
-    return abiertos
+        for p in lote:
+            cache[p] = False
+        for x in resultados:
+            if x.get("pmcid") in lote:
+                cache[x["pmcid"]] = x.get("isOpenAccess") == "Y"
+        _cache_guardar("europepmc_pmcid", cache)
+    return {p for p in pmcids if cache.get(p)}
 
 
 def europepmc_por_doi(dois: list[str]) -> dict[str, str]:
-    """DOI -> PMCID, solo los que Europe PMC entrega completos (isOpenAccess = Y).
+    """DOI -> PMCID, solo los que Europe PMC entrega completos (isOpenAccess = Y). Con caché.
 
-    Sirve para rescatar articulos cuyo sitio de la editorial no se puede usar:
-    el texto llega por la API de Europe PMC, sin tocar la editorial ni la web de PMC.
+    Asi el texto llega por la API de Europe PMC, sin tocar la editorial ni la web de PMC.
     """
-    encontrados = {}
-    validos = [d for d in dois if '"' not in d]
-    for i in range(0, len(validos), LOTE_EUROPEPMC_DOI):
-        lote = validos[i:i + LOTE_EUROPEPMC_DOI]
-        try:
-            _, r = red.seguir("https://www.ebi.ac.uk/europepmc/webservices/rest/search", timeout=30, reintentos=2,
-                              params={"query": " OR ".join(f'DOI:"{d}"' for d in lote),
-                                      "resultType": "core", "format": "json", "pageSize": 100})
-            resultados = r.json()["resultList"]["result"]
-        except (red.FalloRed, ValueError, KeyError) as e:
-            print(f"   AVISO: falló un lote de Europe PMC por DOI ({e})")
+    cache = _cache_leer("europepmc_doi")  # doi -> pmcid ("" si no esta completo en Europe PMC)
+    faltan = [d for d in dois if '"' not in d and d not in cache]
+    print(f"   Europe PMC por DOI: {len(dois) - len(faltan)} en caché, {len(faltan)} por consultar")
+    for i in range(0, len(faltan), LOTE_EUROPEPMC_DOI):
+        lote = faltan[i:i + LOTE_EUROPEPMC_DOI]
+        resultados = _buscar_europepmc([f'DOI:"{d}"' for d in lote], "core")
+        if resultados is None:
             continue
+        for d in lote:
+            cache.setdefault(d, "")
         for x in resultados:
             doi = (x.get("doi") or "").lower()
             if doi in lote and x.get("pmcid") and x.get("isOpenAccess") == "Y":
-                encontrados[doi] = x["pmcid"]
-    return encontrados
+                cache[doi] = x["pmcid"]
+        _cache_guardar("europepmc_doi", cache)
+    return {d: cache[d] for d in dois if cache.get(d)}
 
 
 # ---------------------------------------------------------------------------
@@ -293,13 +351,15 @@ def revisar(f: dict, oa: dict | None, epmc_abiertos: set[str]) -> dict:
     """Prueba las rutas a, b, c, d en orden y se queda con la primera que sirve."""
     if not f["url"]:
         return {"estado": SIN_RUTA, "motivo": "no hay URL en el Excel"}
-    if f["doi"] and oa is None and urlparse(f["url"]).netloc.endswith("doi.org"):
-        return {"estado": SIN_OPENALEX, "motivo": f"OpenAlex no conoce el DOI {f['doi']}"}
 
     candidatos = []                                   # (ruta, url) en orden de preferencia
-    pmcid = (oa or {}).get("pmcid") or f["pmcid"]
+    # Europe PMC va siempre primero: es mas rapido, mas limpio y no lo bloquean.
+    # f["pmcid"] ya trae el PMCID que Europe PMC confirmo por DOI (o el de la URL).
+    pmcid = f["pmcid"] or (oa or {}).get("pmcid", "")
     if pmcid and pmcid in epmc_abiertos:
         candidatos.append((RUTA_EPMC, URL_EPMC.format(pmcid)))
+    elif f["doi"] and oa is None and urlparse(f["url"]).netloc.endswith("doi.org"):
+        return {"estado": SIN_OPENALEX, "motivo": f"OpenAlex no conoce el DOI {f['doi']}"}
     fallos = []
     if pmcid and pmcid not in epmc_abiertos:
         fallos.append((SIN_RUTA, f"Europe PMC no da el texto completo de {pmcid} (sin licencia abierta)"))
@@ -310,7 +370,7 @@ def revisar(f: dict, oa: dict | None, epmc_abiertos: set[str]) -> dict:
     if oa and oa["oa_url"] and oa["oa_url"] != oa["pdf_url"]:
         candidatos.append((RUTA_WEB, oa["oa_url"]))
     if not urlparse(f["url"]).netloc.endswith("doi.org"):
-        candidatos.append((RUTA_PDF if f["tipo_url"] == "PDF directo" else RUTA_WEB, f["url"]))
+        candidatos.append((RUTA_PDF if f["tipo_url"] == "PDF directo" else RUTA_WEB, url_leychile(f["url"])))
     # la web de PMC tiene CAPTCHA: nunca se usa (su texto llega por Europe PMC, ruta a)
     pmc_web = [u for _, u in candidatos if "ncbi.nlm.nih.gov" in u]
     candidatos = [(r, u) for r, u in candidatos if "ncbi.nlm.nih.gov" not in u]
@@ -382,7 +442,7 @@ def sin_formulas(df: pd.DataFrame) -> pd.DataFrame:
 
 COLUMNAS = ["id", "hoja", "grupo", "coleccion", "titulo_excel", "enfermedad", "prioridad", "tipo_url", "url",
             "doi", "pmcid", "clave", "duplicado_de", "tambien_en", "en_openalex", "is_oa", "oa_url", "pdf_url",
-            "estado", "motivo", "estado_antes_europepmc", "descargar", "ruta", "url_descarga", "titulo_pagina", "similitud_titulo",
+            "en_europepmc", "estado", "motivo", "revisar_investigacion", "descargar", "ruta", "url_descarga", "titulo_pagina", "similitud_titulo",
             "meta_titulo", "meta_institucion", "meta_anio", "fuente_metadatos"]
 
 
@@ -400,9 +460,15 @@ def main() -> None:
 
     print("Consultando OpenAlex...")
     oa = consultar_openalex(sorted({d for d in entran.doi if d}))
-    pmcids = sorted({p for p in list(entran.pmcid) + [v["pmcid"] for v in oa.values()] if p})
-    print(f"Consultando Europe PMC ({len(pmcids)} PMCID)...")
-    epmc = consultar_europepmc(pmcids)
+    print("Consultando Europe PMC por DOI (va primero: si tiene el texto completo, esa es la ruta)...")
+    epmc_doi = europepmc_por_doi(sorted({d for d in entran.doi if d}))
+    for i in entran.index:  # el PMCID confirmado por Europe PMC manda sobre el de la URL
+        if epmc_doi.get(df.loc[i, "doi"]):
+            df.loc[i, "pmcid"] = epmc_doi[df.loc[i, "doi"]]
+    entran = df.loc[entran.index]
+    pmcids = sorted({p for p in list(entran.pmcid) + [v["pmcid"] for v in oa.values()] if p} - set(epmc_doi.values()))
+    print(f"Consultando Europe PMC ({len(pmcids)} PMCID más)...")
+    epmc = consultar_europepmc(pmcids) | set(epmc_doi.values())
 
     print(f"Revisando {len(entran)} URL ({HILOS} a la vez, un pedido a la vez por dominio)...")
     resultados = {}
@@ -427,19 +493,10 @@ def main() -> None:
         for k, v in r.items():
             df.loc[i, k] = v
 
-    rescatables = df[df.estado.isin(SE_RESCATAN) & (df.doi != "")]
-    print(f"Buscando en Europe PMC por DOI las {len(rescatables)} que no tienen ruta...")
-    rescatadas = europepmc_por_doi(sorted(set(rescatables.doi)))
-    for i in rescatables.index:
-        pmcid = rescatadas.get(df.loc[i, "doi"])
-        if pmcid:
-            df.loc[i, "estado_antes_europepmc"] = df.loc[i, "estado"]
-            df.loc[i, ["estado", "ruta", "url_descarga", "pmcid"]] = [OK, RUTA_EPMC, URL_EPMC.format(pmcid), pmcid]
-            df.loc[i, "motivo"] = f"recuperada por Europe PMC por DOI (antes: {df.loc[i, 'motivo']})"
-    print(f"   recuperadas: {int((df.estado_antes_europepmc != '').sum())}")
-
     for i in df.index:
         f = df.loc[i].to_dict()
+        df.loc[i, "en_europepmc"] = "sí" if f["pmcid"] in epmc else ("no" if f["doi"] or f["pmcid"] else "")
+        df.loc[i, "revisar_investigacion"] = f["excluida"] if f["id"] in EXCLUIDOS_A_MANO else tema_a_revisar(f["titulo_excel"])
         datos_oa = oa.get(f["doi"]) if f["doi"] else None
         df.loc[i, "en_openalex"] = "sí" if datos_oa else ("no" if f["doi"] else "")
         if datos_oa:
@@ -452,7 +509,7 @@ def main() -> None:
     df["descargar"] = ["sí" if e in SE_DESCARGAN else "no" for e in df.estado]
 
     fuentes = df[df.excluida == ""].reindex(columns=COLUMNAS).fillna("")
-    excluidas = df[df.excluida != ""][["id", "hoja", "grupo", "titulo_excel", "prioridad", "excluida"]]
+    excluidas = df[df.excluida != ""][["id", "hoja", "grupo", "titulo_excel", "url", "prioridad", "excluida"]]
     por_estado = pd.crosstab(fuentes.estado, fuentes.coleccion, margins=True, margins_name="Total")
     rutas = pd.crosstab(fuentes[fuentes.descargar == "sí"].ruta, fuentes[fuentes.descargar == "sí"].coleccion,
                         margins=True, margins_name="Total")
