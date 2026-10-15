@@ -7,7 +7,8 @@ Reglas que se cumplen siempre:
   entre pedidos (o lo que pida el Crawl-delay del robots.txt).
 - Nunca se intenta saltar logins, paywalls, CAPTCHAs ni bloqueos: se informan.
 
-Es seguro usarlo desde varios hilos a la vez (cada dominio tiene su candado).
+Es seguro usarlo desde varios hilos a la vez (cada dominio tiene su candado
+y su propia sesion HTTP, que reutiliza la conexion entre archivos).
 """
 import ipaddress
 import re
@@ -48,7 +49,7 @@ class FalloRed(Exception):
         self.motivo = motivo
 
 
-_local = threading.local()                       # una sesion por hilo
+_sesiones: dict[str, requests.Session] = {}      # una sesion por dominio (reutiliza la conexion)
 _candados: dict[str, threading.Lock] = {}        # un candado por dominio
 _candado_global = threading.Lock()
 _ultimo_pedido: dict[str, float] = {}
@@ -77,11 +78,14 @@ def _destino_publico(url: str) -> None:
         raise FalloRed(CAIDO, f"{host}: apunta a una red privada o local (no se pide)")
 
 
-def _sesion() -> requests.Session:
-    if not hasattr(_local, "sesion"):
-        _local.sesion = requests.Session()
-        _local.sesion.headers["User-Agent"] = USER_AGENT
-    return _local.sesion
+def _sesion(dominio: str) -> requests.Session:
+    """La sesion del dominio: mantiene la conexion abierta (keep-alive) entre archivos."""
+    with _candado_global:
+        if dominio not in _sesiones:
+            s = requests.Session()
+            s.headers["User-Agent"] = USER_AGENT
+            _sesiones[dominio] = s
+        return _sesiones[dominio]
 
 
 def _candado(clave: str) -> threading.Lock:
@@ -106,7 +110,7 @@ def pedir(url: str, *, timeout: float = 30, stream: bool = False, reintentos: in
             if falta > 0:
                 time.sleep(falta)
             try:
-                r = _sesion().get(url, params=params, timeout=timeout, stream=stream, allow_redirects=False)
+                r = _sesion(dominio).get(url, params=params, timeout=timeout, stream=stream, allow_redirects=False)
             except requests.Timeout:
                 r, error = None, f"sin respuesta en {timeout:.0f} s"
             except requests.ConnectionError:
