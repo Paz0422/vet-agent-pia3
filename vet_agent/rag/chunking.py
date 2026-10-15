@@ -113,6 +113,46 @@ def cortar(texto: str, max_chars: int = MAX_CHARS, solape: int = SOLAPE) -> list
     return pedazos
 
 
+RE_TITULO = re.compile(r"^#{1,6} ", re.MULTILINE)   # linea que empieza con # a ######
+
+
+def _secciones_md(texto: str) -> list[str]:
+    """Divide el Markdown en secciones: cada una empieza en un titulo (#)."""
+    inicios = [m.start() for m in RE_TITULO.finditer(texto)]
+    if not inicios or inicios[0] != 0:
+        inicios = [0] + inicios                      # texto antes del primer titulo
+    fines = inicios[1:] + [len(texto)]
+    return [texto[a:b].strip() for a, b in zip(inicios, fines) if texto[a:b].strip()]
+
+
+def cortar_md(texto: str, max_chars: int = MAX_CHARS, solape: int = SOLAPE) -> list[str]:
+    """Como cortar(), pero corta preferentemente en los titulos del Markdown.
+
+    - Las secciones chicas se juntan hasta llegar a ~max_chars.
+    - Una seccion mas grande que max_chars se corta con cortar(), y cada
+      pedazo (menos el primero) repite el titulo para no perder el contexto.
+    - Entre secciones no hay solape: el titulo ya es un corte natural.
+    """
+    pedazos, actual = [], ""
+    for seccion in _secciones_md(texto):
+        if len(seccion) > max_chars:                 # seccion grande: se corta por dentro
+            if actual:
+                pedazos.append(actual)
+                actual = ""
+            titulo = seccion.split("\n", 1)[0] if seccion.startswith("#") else ""
+            partes = cortar(seccion, max_chars, solape)
+            pedazos.append(partes[0])
+            pedazos += [f"{titulo}\n\n{p}" if titulo else p for p in partes[1:]]
+            continue
+        if actual and len(actual) + 2 + len(seccion) > max_chars:
+            pedazos.append(actual)                   # la seccion no cabe: pedazo nuevo
+            actual = ""
+        actual = (actual + "\n\n" + seccion).strip()  # secciones chicas se juntan
+    if actual:
+        pedazos.append(actual)
+    return pedazos
+
+
 if __name__ == "__main__":
     import pathlib
     import sys

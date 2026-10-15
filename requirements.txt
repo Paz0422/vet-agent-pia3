@@ -4,3 +4,5 @@ pymupdf
 chromadb
 sentence-transformers
 pandas
+trafilatura
+pymupdf4llm
