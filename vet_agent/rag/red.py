@@ -24,6 +24,9 @@ USER_AGENT = "vet-agent-pia3 (proyecto universitario UTEM; ppereza@utem.cl)"
 ESPERA = 2.0                                  # segundos minimos entre pedidos al mismo dominio
 # APIs hechas para programas: van mas rapido que los sitios web (que siguen con 2 s)
 ESPERA_POR_DOMINIO = {"api.openalex.org": 1.0, "www.ebi.ac.uk": 1.0}
+# Pedidos simultaneos por dominio: 1 en todos (los sitios de editoriales nunca cambian),
+# salvo la API de Europe PMC, que tarda varios segundos por articulo y es la que mas se usa
+CONCURRENCIA_POR_DOMINIO = {"www.ebi.ac.uk": 3}
 MAX_REDIRECCIONES = 5
 
 # URL de login: /login, /signin, /sign-in, /auth (palabra completa: /authors no cuenta)
@@ -94,6 +97,19 @@ def _candado(clave: str) -> threading.Lock:
         return _candados.setdefault(clave, threading.Lock())
 
 
+_semaforos: dict[str, threading.BoundedSemaphore] = {}
+
+
+def concurrencia(dominio: str) -> int:
+    return CONCURRENCIA_POR_DOMINIO.get(dominio, 1)
+
+
+def _semaforo(dominio: str) -> threading.BoundedSemaphore:
+    """Cuantos pedidos al dominio pueden estar en curso a la vez (1 salvo excepciones)."""
+    with _candado_global:
+        return _semaforos.setdefault(dominio, threading.BoundedSemaphore(concurrencia(dominio)))
+
+
 def pedir(url: str, *, timeout: float = 30, stream: bool = False, reintentos: int = 0,
           params: dict | None = None) -> requests.Response:
     """GET sin seguir redirecciones, esperando el turno del dominio.
@@ -106,10 +122,14 @@ def pedir(url: str, *, timeout: float = 30, stream: bool = False, reintentos: in
     if dominio in _robots:  # si robots.txt pide mas pausa (Crawl-delay), se respeta
         espera = max(espera, float(_robots[dominio].crawl_delay(USER_AGENT) or 0))
     for intento in range(reintentos + 1):
-        with _candado(dominio):  # un pedido a la vez por dominio
-            falta = _ultimo_pedido.get(dominio, 0) + espera - time.monotonic()
-            if falta > 0:
-                time.sleep(falta)
+        # El semaforo deja N pedidos en curso (1 en casi todos los dominios) y el candado
+        # asegura la pausa entre un pedido y el siguiente.
+        with _semaforo(dominio):
+            with _candado(dominio):
+                falta = _ultimo_pedido.get(dominio, 0) + espera - time.monotonic()
+                if falta > 0:
+                    time.sleep(falta)
+                _ultimo_pedido[dominio] = time.monotonic()
             try:
                 r = _sesion(dominio).get(url, params=params, timeout=timeout, stream=stream, allow_redirects=False)
             except requests.Timeout:
@@ -117,7 +137,8 @@ def pedir(url: str, *, timeout: float = 30, stream: bool = False, reintentos: in
             except requests.ConnectionError:
                 r, error = None, "sitio caído o sin conexión"
             finally:
-                _ultimo_pedido[dominio] = time.monotonic()
+                with _candado(dominio):  # con 1 a la vez, la pausa cuenta desde que termino el anterior
+                    _ultimo_pedido[dominio] = max(_ultimo_pedido.get(dominio, 0), time.monotonic())
         if r is not None and r.status_code < 500:
             return r
         if r is not None:

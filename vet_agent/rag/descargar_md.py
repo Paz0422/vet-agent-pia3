@@ -15,8 +15,9 @@ No se intenta saltar bloqueos, CAPTCHAs, logins ni paywalls.
 
 Como se reparte el trabajo:
 - Descargas: una cola por dominio y hasta 8 dominios a la vez; dentro de un
-  dominio, una descarga tras otra (al menos 2 s entre pedidos, 1 s en las APIs
-  de Europe PMC y OpenAlex, y una sesion HTTP por dominio; eso lo hace red.py).
+  dominio, una descarga tras otra (al menos 2 s entre pedidos y una sesion HTTP
+  por dominio; eso lo hace red.py). Excepcion: la API de Europe PMC acepta 3 a
+  la vez, con 1 s entre inicios, porque tarda varios segundos por articulo.
   Las colas mas largas (Europe PMC) parten primero, asi no frenan a las demas.
 - El XML/HTML ya bajado queda en corpus/md/_cache/descargas/: si hay que volver
   a convertir o limpiar, no se pide de nuevo a internet (--sin-cache lo ignora).
@@ -292,6 +293,13 @@ def main() -> None:
 
     fuentes = pd.read_excel(PREFILTRO, sheet_name="Fuentes", dtype=str).fillna("")
     fuentes = fuentes[fuentes.descargar == "sí"].to_dict("records")
+    # lo que la validacion descarto y limpiar.py borro no se vuelve a bajar (salvo que cambie su URL)
+    archivo = RAIZ / "corpus" / "md" / "_cache" / "descartados.json"
+    descartados = json.loads(archivo.read_text(encoding="utf-8")) if archivo.exists() else {}
+    saltar = [f for f in fuentes if descartados.get(f"{f['coleccion']}/{f['id']}") == f["url_descarga"]]
+    if saltar:
+        print(f"{len(saltar)} se saltan porque la validación las descartó con esa misma URL")
+    fuentes = [f for f in fuentes if f not in saltar]
     pendientes = [f for f in fuentes if not ya_bajada(f)]
     colas = defaultdict(list)  # una cola por dominio
     for f in pendientes:
@@ -317,9 +325,14 @@ def main() -> None:
         barra.set_postfix(ok=ok, fallidos=len(errores))
         barra.update()
 
-    with ThreadPoolExecutor(HILOS) as hilos, ProcessPoolExecutor(PROCESOS) as procesos:
-        for d in orden:
-            hilos.submit(_trabajar_cola, colas[d], resultados)
+    # Cada dominio tiene tantos trabajadores como pedidos simultaneos permite red.py
+    # (1 en las editoriales, 3 en la API de Europe PMC): su cola se reparte entre ellos.
+    trabajos = [colas[d][i::red.concurrencia(d)] for d in orden for i in range(red.concurrencia(d))]
+    trabajos = [t for t in trabajos if t]
+    extra = sum(red.concurrencia(d) - 1 for d in orden)
+    with ThreadPoolExecutor(HILOS + extra) as hilos, ProcessPoolExecutor(PROCESOS) as procesos:
+        for t in trabajos:
+            hilos.submit(_trabajar_cola, t, resultados)
         while terminadas < len(pendientes):
             try:
                 tipo, f, dato = resultados.get(timeout=0.2)
