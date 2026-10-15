@@ -90,7 +90,7 @@ def revisar(ruta: pathlib.Path) -> dict:
 
 
 def clasificar(r: dict, primero_con_huella: dict, plan: set[str]) -> tuple[str, str]:
-    if f"{r['coleccion']}/{r['id']}" not in plan:
+    if f"{r['coleccion']}/{r['id']}" not in plan and not r["ruta"].startswith("e)"):  # e) = PDF local del repo
         return EXCLUIDO, "el prefiltro la sacó (excluida a mano o duplicada)"
     if r["paginas"] and r["chars_por_pagina"] < CHARS_POR_PAGINA:
         return ESCANEADO, f"{r['chars_por_pagina']} caracteres por página (< {CHARS_POR_PAGINA})"
@@ -121,7 +121,7 @@ def main() -> None:
     filas = [revisar(p) for p in archivos]
     primero = {}
     for r in filas:
-        if f"{r['coleccion']}/{r['id']}" in plan:
+        if f"{r['coleccion']}/{r['id']}" in plan or r["ruta"].startswith("e)"):
             primero.setdefault(r["huella"], r["id"])
     for r in filas:
         primero.setdefault(r["huella"], r["id"])
