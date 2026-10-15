@@ -15,7 +15,8 @@ Borra:
 NUNCA borra (si algo de esto aparece en la lista, se detiene sin borrar nada):
 los .md "OK", corpus/md/_cache/, prefiltro.xlsx, reporte_validacion.xlsx,
 para_investigacion.xlsx, las colecciones *_md de Chroma (incluida
-diagnostico_md_v1) ni corpus/D/ (los PDF originales).
+diagnostico_md_v1) ni corpus/D/ (PDF entregados a mano). Los .md que estan en
+git (los 18 del eje D que venian de PDF) son "OK", asi que tambien quedan protegidos.
 """
 import argparse
 import pathlib
