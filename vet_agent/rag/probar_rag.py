@@ -1,19 +1,20 @@
 # Tarea 5: preguntas de prueba y Recall@5
 """Mide si el buscador encuentra el documento correcto.
 
-Uso (raiz del repo, despues de correr extraer e indexar):
-    python -m vet_agent.rag.probar_rag                            # coleccion "diagnostico" (.txt)
-    python -m vet_agent.rag.probar_rag --coleccion diagnostico_md # coleccion de los .md
+Uso (raiz del repo, despues de indexar_md):
+    python -m vet_agent.rag.probar_rag                               # coleccion "diagnostico_md"
+    python -m vet_agent.rag.probar_rag --coleccion diagnostico_md_v1 # otra coleccion
 
-Lee corpus/preguntas_prueba.csv (pregunta, doc_esperado, nota). Para cada
-pregunta pide 5 pedazos a buscar_crudo y revisa si alguno viene del
-doc_esperado. Recall@5 = preguntas acertadas / total de preguntas.
+Lee corpus/preguntas_prueba.csv (pregunta, doc_esperado, nota). doc_esperado
+puede tener varios documentos validos separados por ";" (por ejemplo
+"D22;D8"): la pregunta acierta si CUALQUIERA aparece entre los 5 pedazos.
+Recall@5 = preguntas acertadas / total de preguntas.
 
 Se muestra de dos formas:
 - total: todas las preguntas.
-- solo docs en la coleccion: deja fuera las preguntas cuyo doc_esperado no
-  esta indexado (por ejemplo, porque no se pudo descargar). Esa mide la
-  calidad del buscador; la total mide ademas cuanto falta del corpus.
+- solo docs en la coleccion: deja fuera las preguntas cuyos documentos
+  esperados no estan indexados (por ejemplo, porque no se pudieron bajar).
+  Esa mide la calidad del buscador; la total mide ademas cuanto falta del corpus.
 
 OJO: las preguntas son un BORRADOR. Investigacion tiene que validarlas.
 """
@@ -26,17 +27,23 @@ from vet_agent.rag.buscar import _cliente, buscar_crudo
 
 RAIZ = pathlib.Path(__file__).resolve().parents[2]
 ARCHIVO_PREGUNTAS = RAIZ / "corpus" / "preguntas_prueba.csv"
-COLECCION = "diagnostico"
+COLECCION = "diagnostico_md"
 K = 5
 
 
+def esperados(texto: str) -> list[str]:
+    """'D22; D8' -> ['D22', 'D8']"""
+    return [d.strip() for d in str(texto).split(";") if d.strip()]
+
+
 def posicion(coleccion: str, pregunta: str, doc_esperado: str, k: int = K) -> int | None:
-    """Lugar (1 a k) del primer pedazo que viene de doc_esperado. None si no aparece.
+    """Lugar (1 a k) del primer pedazo que viene de alguno de los docs esperados. None si no aparece.
 
     Varios pedazos pueden ser del mismo documento; cuenta el mejor ubicado.
     """
+    validos = set(esperados(doc_esperado))
     docs = [p["doc_id"] for p in buscar_crudo(coleccion, pregunta, k)]
-    return docs.index(doc_esperado) + 1 if doc_esperado in docs else None
+    return next((i + 1 for i, d in enumerate(docs) if d in validos), None)
 
 
 def docs_indexados(coleccion: str) -> set[str]:
@@ -56,19 +63,20 @@ def main() -> None:
     coleccion = parser.parse_args().coleccion
 
     preguntas = pd.read_csv(ARCHIVO_PREGUNTAS, dtype=str, encoding="utf-8-sig")
-    esperados = preguntas.doc_esperado.str.strip()
+    esperado = preguntas.doc_esperado.str.strip()
     try:
         indexados = docs_indexados(coleccion)
-        posiciones = [posicion(coleccion, q, d) for q, d in zip(preguntas.pregunta, esperados)]
+        posiciones = [posicion(coleccion, q, d) for q, d in zip(preguntas.pregunta, esperado)]
     except Exception as e:  # la coleccion no existe todavia
         print(f"No pude buscar en '{coleccion}' ({e}).")
-        print("Primero corre extraer + indexar (o descargar + indexar_md)")
+        print("Primero corre descargar_md (o pdf_local), limpiar_texto, validar e indexar_md")
         return
 
+    presente = [any(d in indexados for d in esperados(e)) for e in esperado]
     tabla = pd.DataFrame({
         "pregunta": preguntas.pregunta.str.slice(0, 70),
-        "esperado": esperados,
-        "indexado": ["sí" if d in indexados else "no" for d in esperados],
+        "esperado": esperado,
+        "indexado": ["sí" if p else "no" for p in presente],
         "acierto": ["sí" if p else "no" for p in posiciones],
         "posicion": [p if p else "-" for p in posiciones],
     })
@@ -76,7 +84,7 @@ def main() -> None:
     print("Preguntas en BORRADOR (falta que Investigacion las valide)\n")
     print(tabla.to_string(index=False))
 
-    con_doc = [p for p, d in zip(posiciones, esperados) if d in indexados]
+    con_doc = [p for p, ok in zip(posiciones, presente) if ok]
     print(f"\nRecall@{K} total:                     {_recall(posiciones)}")
     print(f"Recall@{K} solo docs en la coleccion: {_recall(con_doc)}")
 

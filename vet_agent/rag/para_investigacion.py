@@ -50,6 +50,27 @@ def _fila(id_, coleccion, titulo, url, categoria, motivo, origen) -> dict:
             "motivo": motivo, "que_hacer": hacer, "origen": origen}
 
 
+def hoja_preguntas(coleccion: str = "diagnostico_md") -> pd.DataFrame | None:
+    """Preguntas de prueba con los 5 documentos que hoy devuelve el buscador, para que
+    Investigacion marque cuales son aceptables (columna docs_aceptables, separados por ;)."""
+    try:
+        from vet_agent.rag.buscar import buscar_crudo  # carga el modelo: solo si hace falta
+        q = pd.read_csv(RAIZ / "corpus" / "preguntas_prueba.csv", dtype=str, encoding="utf-8-sig").fillna("")
+        filas = []
+        for f in q.itertuples():
+            vistos = []
+            for p in buscar_crudo(coleccion, f.pregunta, 5):
+                if p["doc_id"] not in [v[0] for v in vistos]:
+                    vistos.append((p["doc_id"], p.get("titulo", "")))
+            filas.append({"pregunta": f.pregunta, "doc_esperado_actual": f.doc_esperado,
+                          f"top5_hoy_en_{coleccion}": " | ".join(f"{d}: {t[:80]}" for d, t in vistos),
+                          "docs_aceptables (completar, separados por ;)": "", "comentario (completar)": ""})
+        return pd.DataFrame(filas)
+    except Exception as e:  # sin coleccion o sin modelo: el resto de la lista igual se genera
+        print(f"AVISO: no se armó la hoja de preguntas ({e})")
+        return None
+
+
 def main() -> None:
     filas = []
     ok = set()  # lo que quedo OK en la validacion ya no es problema (aunque haya fallado en una corrida)
@@ -76,12 +97,15 @@ def main() -> None:
         for f in val[val.estado.isin(ESTADOS_VALIDACION)].itertuples():
             filas.append(_fila(f.id, f.coleccion, f.titulo, urls.get(f.id, ""), f.estado, f.motivo, "validación"))
 
+    preguntas = hoja_preguntas()
     df = pd.DataFrame(filas).sort_values(["categoria", "coleccion", "id"])
     resumen = pd.crosstab(df.categoria, df.coleccion.replace("", "(excluido)"), margins=True, margins_name="Total")
     with pd.ExcelWriter(SALIDA, engine="openpyxl") as xl:
         resumen.to_excel(xl, sheet_name="Resumen", startrow=1)
         xl.sheets["Resumen"].cell(1, 1, f"Para revisar por Investigación (generado el {time.strftime('%Y-%m-%d %H:%M')})")
         sin_formulas(df).to_excel(xl, sheet_name="Para revisar", index=False)
+        if preguntas is not None:
+            sin_formulas(preguntas).to_excel(xl, sheet_name="Preguntas de prueba", index=False)
     print(f"{len(df)} filas para Investigación -> {SALIDA}")
     print(resumen.to_string())
 
