@@ -19,6 +19,7 @@ diagnostico_md_v1) ni corpus/D/ (PDF entregados a mano). Los .md que estan en
 git (los 18 del eje D que venian de PDF) son "OK", asi que tambien quedan protegidos.
 """
 import argparse
+import json
 import pathlib
 import shutil
 
@@ -79,6 +80,19 @@ def a_borrar() -> tuple[list[tuple[str, pathlib.Path]], list[tuple[str, str, int
     return lista, colecciones
 
 
+def recordar_descartados(rutas: list[pathlib.Path]) -> None:
+    """Anota en _cache/descartados.json la URL de cada .md descartado, para que la
+    descarga no lo vuelva a bajar (solo lo reintenta si su URL cambia en el prefiltro)."""
+    from vet_agent.rag import cabecera
+    archivo = MD / "_cache" / "descartados.json"
+    datos = json.loads(archivo.read_text(encoding="utf-8")) if archivo.exists() else {}
+    for ruta in rutas:
+        meta, _ = cabecera.leer(ruta)
+        datos[f"{ruta.parent.name}/{ruta.stem}"] = meta.get("url_plan", "")
+    archivo.parent.mkdir(parents=True, exist_ok=True)
+    archivo.write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def ok_protegidos() -> set[pathlib.Path]:
     """Los .md "OK" de la validacion (tambien protegidos)."""
     if not REPORTE.exists():
@@ -121,6 +135,7 @@ def main() -> None:
     if args.prueba:
         print("\nModo de prueba: no se borró nada.")
         return
+    recordar_descartados([ruta for motivo, ruta in lista if motivo.startswith(".md descartado")])
     for _, ruta in lista:
         shutil.rmtree(ruta) if ruta.is_dir() else ruta.unlink(missing_ok=True)
     for _, nombre, _ in colecciones:
