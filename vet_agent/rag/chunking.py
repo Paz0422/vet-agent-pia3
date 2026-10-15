@@ -158,32 +158,17 @@ if __name__ == "__main__":
     import sys
 
     raiz = pathlib.Path(__file__).resolve().parents[2]
-    # Preferir primero un archivo prueba.txt en la raiz o carpeta actual
-    candidatos = []
-    candidatos.append(pathlib.Path("prueba.txt"))
-    candidatos.append(raiz / "prueba.txt")
-    # Si no hay prueba.txt, buscar el primer .txt de corpus/txt
-    for c in candidatos:
-        if c.exists():
-            archivo = c
-            break
-    else:
-        # buscar corpus/txt/D*.txt
-        corpus = raiz / "corpus" / "txt"
-        if corpus.exists():
-            archivos = sorted(corpus.glob("D*.txt"))
-            if archivos:
-                archivo = archivos[0]
-            else:
-                print("No hay prueba.txt ni archivos en corpus/txt. Generalos con: python -m vet_agent.rag.extraer")
-                sys.exit(1)
-        else:
-            print("No hay prueba.txt ni corpus/txt. Genera los .txt con: python -m vet_agent.rag.extraer")
-            sys.exit(1)
+    # Prueba rapida con el primer .md de corpus/md/diagnostico (sin su cabecera)
+    archivos = sorted((raiz / "corpus" / "md" / "diagnostico").glob("D*.md"))
+    if not archivos:
+        print("No hay .md en corpus/md/diagnostico. Generalos con: python -m vet_agent.rag.pdf_local")
+        sys.exit(1)
+    archivo = archivos[0]
 
-    texto = archivo.read_text(encoding="utf-8")
+    from vet_agent.rag import cabecera
+    _, texto = cabecera.leer(archivo)
     print("Leyendo", archivo)
-    pedazos = cortar(texto)
+    pedazos = cortar_md(texto)
     print(len(pedazos), "pedazos")
     for i, c in enumerate(pedazos[:3]):
         print(f"\n--- pedazo {i} ({len(c)} caracteres) ---\n{c}")
