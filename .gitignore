@@ -9,3 +9,4 @@ corpus/escaneados_*.txt
 corpus/md/**
 !corpus/md/prefiltro.xlsx
 !corpus/md/reporte_validacion.xlsx
+!corpus/md/para_investigacion.xlsx
