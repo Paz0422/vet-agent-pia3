@@ -8,6 +8,17 @@ Se excluyen D2 y D26 porque son duplicados de B11/E9 y B4.
 
 **Estado:** 26 de 34 documentos (consultados el 14/10/2026).
 
+## Todo el corpus está en Markdown (desde el 15/10/2026)
+
+Ya no hay pipeline `.txt` (se retiraron `extraer.py`, `indexar.py`, `corpus/txt/` y la colección `diagnostico`). Los documentos viven en `corpus/md/<colección>/<id>.md` y se indexan en `climatico_md`, `diagnostico_md` y `bioseguridad_md`:
+
+1. `python -m vet_agent.rag.prefiltro`: decide qué fuentes del Excel se bajan y por qué ruta.
+2. `python -m vet_agent.rag.descargar_md`: baja desde Europe PMC, PDF o web.
+3. `python -m vet_agent.rag.pdf_local`: pasa a Markdown los PDF de `D/` (aplica `arreglos.json`).
+4. `python -m vet_agent.rag.limpiar_texto`, luego `validar` e `indexar_md`.
+
+Las notas de abajo sobre la "Tarea 2" siguen valiendo: esos arreglos se aplican ahora desde `pdf_local.py`.
+
 ## Columna `enfermedad`
 
 El proyecto es solo de influenza aviar, pero el corpus incluye documentos de cerdos. Esta columna permite filtrarlos en el buscador:
