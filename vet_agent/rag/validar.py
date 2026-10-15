@@ -7,7 +7,7 @@ Revisa corpus/md/<coleccion>/*.md y escribe corpus/md/reporte_validacion.xlsx
 con un estado por archivo. Solo los "OK" se indexan.
 
 Estados (se aplica el primero que calce, en este orden):
-  Excluido          ya no esta en el plan del prefiltro (por ejemplo, BIO-139).
+  Excluido          el prefiltro la saco a proposito (por ejemplo, BIO-139 o un duplicado).
   Escaneado         PDF con menos de 100 caracteres por pagina.
   Pagina equivocada el titulo no aparece en las primeras 3.000 palabras Y la
                     pagina tiene menos de 150 palabras o es casi puro links.
@@ -91,7 +91,7 @@ def revisar(ruta: pathlib.Path) -> dict:
 
 def clasificar(r: dict, primero_con_huella: dict, plan: set[str]) -> tuple[str, str]:
     if f"{r['coleccion']}/{r['id']}" not in plan:
-        return EXCLUIDO, "ya no está en el plan del prefiltro (excluido o sin ruta)"
+        return EXCLUIDO, "el prefiltro la sacó (excluida a mano o duplicada)"
     if r["paginas"] and r["chars_por_pagina"] < CHARS_POR_PAGINA:
         return ESCANEADO, f"{r['chars_por_pagina']} caracteres por página (< {CHARS_POR_PAGINA})"
     titulo_no_esta = r["similitud_titulo"] < UMBRAL_TITULO
@@ -113,8 +113,10 @@ def clasificar(r: dict, primero_con_huella: dict, plan: set[str]) -> tuple[str, 
 
 
 def main() -> None:
+    # Entran todas las fuentes del prefiltro menos los duplicados. Una que fallo de forma
+    # pasajera en la ultima corrida (Caido, etc.) pero ya tiene su .md se valida igual.
     plan = pd.read_excel(CARPETA / "prefiltro.xlsx", sheet_name="Fuentes", dtype=str).fillna("")
-    plan = {f"{c}/{i}" for c, i, d in zip(plan.coleccion, plan.id, plan.descargar) if d == "sí"}
+    plan = {f"{c}/{i}" for c, i, e in zip(plan.coleccion, plan.id, plan.estado) if e != "Duplicado"}
     archivos = sorted(p for c in COLECCIONES for p in (CARPETA / c).glob("*.md"))
     filas = [revisar(p) for p in archivos]
     primero = {}

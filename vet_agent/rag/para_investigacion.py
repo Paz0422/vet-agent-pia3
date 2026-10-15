@@ -52,8 +52,12 @@ def _fila(id_, coleccion, titulo, url, categoria, motivo, origen) -> dict:
 
 def main() -> None:
     filas = []
+    ok = set()  # lo que quedo OK en la validacion ya no es problema (aunque haya fallado en una corrida)
+    if (CARPETA / "reporte_validacion.xlsx").exists():
+        val = pd.read_excel(CARPETA / "reporte_validacion.xlsx", sheet_name="Archivos", dtype=str).fillna("")
+        ok = set(val[val.estado == "OK"].id)
     pre = pd.read_excel(CARPETA / "prefiltro.xlsx", sheet_name="Fuentes", dtype=str).fillna("")
-    for f in pre[pre.estado.isin(ESTADOS_PREFILTRO)].itertuples():
+    for f in pre[pre.estado.isin(ESTADOS_PREFILTRO) & ~pre.id.isin(ok)].itertuples():
         filas.append(_fila(f.id, f.coleccion, f.titulo_excel, f.url, f.estado, f.motivo, "prefiltro"))
     for f in pre[pre.revisar_investigacion != ""].itertuples():
         filas.append(_fila(f.id, f.coleccion, f.titulo_excel, f.url, "Tema a revisar", f.revisar_investigacion, "prefiltro"))
@@ -63,7 +67,7 @@ def main() -> None:
 
     if (CARPETA / "errores.csv").exists():
         err = pd.read_csv(CARPETA / "errores.csv", dtype=str).fillna("")
-        for f in err.itertuples():
+        for f in err[~err.id.isin(ok)].itertuples():
             filas.append(_fila(f.id, f.coleccion, f.titulo, f.url, f.estado, f.motivo, "descarga"))
 
     if (CARPETA / "reporte_validacion.xlsx").exists():
