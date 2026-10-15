@@ -32,7 +32,8 @@ RE_ANTIBOTS = re.compile(
     re.IGNORECASE)
 
 # Estados que se informan (los mismos nombres que usa el prefiltro)
-CAIDO = "Caído"
+CAIDO = "Caído"                                # 404, 5xx, timeout o sin respuesta
+RECHAZADO = "Rechazado por la editorial"       # 403: el sitio responde, pero no deja entrar
 PORTADA_LOGIN = "Portada o login"
 BLOQUEADO_ROBOTS = "Bloqueado por robots.txt"
 CON_PAGO = "Con pago"
@@ -191,6 +192,9 @@ def seguir(url: str, *, timeout: float = 30, stream: bool = False, reintentos: i
         if r.status_code == 402:
             r.close()
             raise FalloRed(CON_PAGO, f"{dominio} pide pago (HTTP 402)")
+        if r.status_code == 403:
+            r.close()
+            raise FalloRed(RECHAZADO, f"{dominio} rechaza el acceso (HTTP 403)")
         if r.status_code >= 400:
             r.close()
             raise FalloRed(CAIDO, f"{dominio} no disponible (HTTP {r.status_code})")

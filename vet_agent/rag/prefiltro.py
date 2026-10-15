@@ -43,6 +43,7 @@ TIMEOUT = 10              # segundos por pedido en el prefiltro
 HILOS = 8                 # pedidos en paralelo (a dominios distintos)
 LOTE_OPENALEX = 50
 LOTE_EUROPEPMC = 50
+LOTE_EUROPEPMC_DOI = 25   # cada DOI ocupa ~60 caracteres en la URL
 
 RUTA_EPMC = "a) Europe PMC"
 RUTA_PDF_OA = "b) PDF de OpenAlex"
@@ -54,6 +55,8 @@ URL_EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/{}/fullTextXML"
 DUPLICADO, SIN_OPENALEX, SIN_RUTA, ANTIBOTS = "Duplicado", "No encontrado en OpenAlex", "Sin ruta", "Bloqueo anti-bots"
 REVISAR_TITULO, OK = "Revisar título", "OK"
 SE_DESCARGAN = {OK, REVISAR_TITULO}
+# Si quedaron asi, se busca el DOI en Europe PMC por si esta completo ahi
+SE_RESCATAN = {red.BLOQUEADO_ROBOTS, red.CAIDO, red.RECHAZADO, red.CON_PAGO, SIN_RUTA}
 
 RE_DOI = re.compile(r"10\.\d{4,9}/[^\s?#&\"'<>]+", re.IGNORECASE)
 RE_PMCID = re.compile(r"\bPMC\d{4,9}\b", re.IGNORECASE)
@@ -224,6 +227,31 @@ def consultar_europepmc(pmcids: list[str]) -> set[str]:
     return abiertos
 
 
+def europepmc_por_doi(dois: list[str]) -> dict[str, str]:
+    """DOI -> PMCID, solo los que Europe PMC entrega completos (isOpenAccess = Y).
+
+    Sirve para rescatar articulos cuyo sitio de la editorial no se puede usar:
+    el texto llega por la API de Europe PMC, sin tocar la editorial ni la web de PMC.
+    """
+    encontrados = {}
+    validos = [d for d in dois if '"' not in d]
+    for i in range(0, len(validos), LOTE_EUROPEPMC_DOI):
+        lote = validos[i:i + LOTE_EUROPEPMC_DOI]
+        try:
+            _, r = red.seguir("https://www.ebi.ac.uk/europepmc/webservices/rest/search", timeout=30, reintentos=2,
+                              params={"query": " OR ".join(f'DOI:"{d}"' for d in lote),
+                                      "resultType": "core", "format": "json", "pageSize": 100})
+            resultados = r.json()["resultList"]["result"]
+        except (red.FalloRed, ValueError, KeyError) as e:
+            print(f"   AVISO: falló un lote de Europe PMC por DOI ({e})")
+            continue
+        for x in resultados:
+            doi = (x.get("doi") or "").lower()
+            if doi in lote and x.get("pmcid") and x.get("isOpenAccess") == "Y":
+                encontrados[doi] = x["pmcid"]
+    return encontrados
+
+
 # ---------------------------------------------------------------------------
 # 4. Revisar cada fuente y decidir la ruta de descarga
 # ---------------------------------------------------------------------------
@@ -354,12 +382,13 @@ def sin_formulas(df: pd.DataFrame) -> pd.DataFrame:
 
 COLUMNAS = ["id", "hoja", "grupo", "coleccion", "titulo_excel", "enfermedad", "prioridad", "tipo_url", "url",
             "doi", "pmcid", "clave", "duplicado_de", "tambien_en", "en_openalex", "is_oa", "oa_url", "pdf_url",
-            "estado", "motivo", "descargar", "ruta", "url_descarga", "titulo_pagina", "similitud_titulo",
+            "estado", "motivo", "estado_antes_europepmc", "descargar", "ruta", "url_descarga", "titulo_pagina", "similitud_titulo",
             "meta_titulo", "meta_institucion", "meta_anio", "fuente_metadatos"]
 
 
 def main() -> None:
     inicio = time.monotonic()
+    fecha = time.strftime("%Y-%m-%d %H:%M")
     df = leer_fuentes()
     df["excluida"] = [motivo_exclusion(f) for f in df.to_dict("records")]
     df["doi"] = df.url.map(extraer_doi)
@@ -397,6 +426,18 @@ def main() -> None:
     for i, r in resultados.items():
         for k, v in r.items():
             df.loc[i, k] = v
+
+    rescatables = df[df.estado.isin(SE_RESCATAN) & (df.doi != "")]
+    print(f"Buscando en Europe PMC por DOI las {len(rescatables)} que no tienen ruta...")
+    rescatadas = europepmc_por_doi(sorted(set(rescatables.doi)))
+    for i in rescatables.index:
+        pmcid = rescatadas.get(df.loc[i, "doi"])
+        if pmcid:
+            df.loc[i, "estado_antes_europepmc"] = df.loc[i, "estado"]
+            df.loc[i, ["estado", "ruta", "url_descarga", "pmcid"]] = [OK, RUTA_EPMC, URL_EPMC.format(pmcid), pmcid]
+            df.loc[i, "motivo"] = f"recuperada por Europe PMC por DOI (antes: {df.loc[i, 'motivo']})"
+    print(f"   recuperadas: {int((df.estado_antes_europepmc != '').sum())}")
+
     for i in df.index:
         f = df.loc[i].to_dict()
         datos_oa = oa.get(f["doi"]) if f["doi"] else None
@@ -424,6 +465,7 @@ def main() -> None:
         exclusiones.to_excel(xl, sheet_name="Resumen", startrow=len(por_estado) + len(rutas) + 9, index=False)
         hoja = xl.sheets["Resumen"]
         hoja.cell(1, 1, "Fuentes por estado y colección")
+        hoja.cell(1, 6, f"Corrida: {fecha} (los resultados varían entre corridas: algunos sitios responden distinto)")
         hoja.cell(len(por_estado) + 5, 1, "Ruta de descarga (solo las que se descargan)")
         hoja.cell(len(por_estado) + len(rutas) + 9, 1, "Filas que no entran")
         sin_formulas(fuentes).to_excel(xl, sheet_name="Fuentes", index=False)
@@ -435,7 +477,7 @@ def main() -> None:
     print(rutas.to_string())
     print("\nFilas que no entran:")
     print(exclusiones.to_string(index=False))
-    print(f"\nListo en {time.monotonic() - inicio:.0f} s -> {SALIDA}")
+    print(f"\nCorrida del {fecha}, lista en {time.monotonic() - inicio:.0f} s -> {SALIDA}")
 
 
 if __name__ == "__main__":
