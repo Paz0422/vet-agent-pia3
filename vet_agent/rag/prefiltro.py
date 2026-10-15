@@ -41,6 +41,11 @@ PRIORIDADES = {"Alta", "Media"}
 AGENTE_EXCLUIDO = "Moderador-verificador"   # papers de LLM, no son base veterinaria
 # Excluidos a mano (y van a la lista para Investigacion)
 EXCLUIDOS_A_MANO = {"BIO-139": "Excluido a mano: paper de LLM/salud mental en bioseguridad (para revisar por Investigación)"}
+# Papers de LLM/RAG/chatbots que el Excel puso en Bioseguridad (decidido el 2026-10-15)
+EXCLUIDOS_A_MANO |= {i: "Excluido a mano: paper de LLM/RAG en bioseguridad, no es base veterinaria (para revisar por Investigación)"
+                     for i in ("BIO-117", "BIO-119", "BIO-120", "BIO-121", "BIO-122", "BIO-124", "BIO-125", "BIO-127",
+                               "BIO-128", "BIO-129", "BIO-130", "BIO-131", "BIO-132", "BIO-133", "BIO-134", "BIO-135",
+                               "BIO-136", "BIO-137")}
 # Temas que no parecen base veterinaria: se marcan para Investigacion, sin excluir
 RE_TEMA_SIGLAS = re.compile(r"\b(LLMs?|RAG)\b")   # en mayusculas, para no confundir "rag" o "drag"
 RE_TEMA_PALABRAS = re.compile(r"\b(large )?language models?\b|\bchat ?bots?\b|\bsalud mental\b|\bmental health\b",
