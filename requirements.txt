@@ -8,3 +8,5 @@ trafilatura
 pymupdf4llm
 rapidfuzz
 openpyxl
+defusedxml
+tqdm
