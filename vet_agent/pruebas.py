@@ -224,6 +224,8 @@ if __name__ == "__main__":
         prueba_rechazo_y_aprobacion,
         prueba_debate_termina,
         prueba_debate_solo_llama_al_consultado,
+        prueba_filtro_excluir_porcino,
+        prueba_buscar_maximo_k,
     ]
     for prueba in pruebas:
         prueba()
