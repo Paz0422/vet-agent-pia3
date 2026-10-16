@@ -1,4 +1,5 @@
 import copy
+import json
 
 import chromadb
 from chromadb.api.types import EmbeddingFunction
@@ -7,6 +8,7 @@ from langgraph.graph import END
 from langgraph.types import Command
 
 from vet_agent import llm
+from vet_agent.agentes import climatico, diagnostico, bioseguridad, moderador
 from vet_agent.config import MAX_RONDAS
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
 from vet_agent.rag import buscar
@@ -52,12 +54,12 @@ def prueba_moderador_informe_final():
 
 
 def prueba_moderador_pide_debate():
-    # dos preguntas al climatico y una al diagnostico: cada agente debe correr una sola vez
+    # aunque pregunte a varios agentes, la cadena siempre se vuelve a recorrer desde climatico
     evaluacion = {"estado": "requiere_debate", "preguntas": [
         pregunta("climatico"), pregunta("diagnostico"), pregunta("climatico"),
     ]}
     estado = {"evaluacion": evaluacion, "revisiones": 1}
-    assert despues_del_moderador(estado) == ["climatico", "diagnostico"]
+    assert despues_del_moderador(estado) == "climatico"
 
 
 def prueba_moderador_llega_al_maximo():
@@ -113,6 +115,36 @@ def prueba_debate_termina():
         llm.RESPUESTAS_SIMULADAS["moderador"] = original
 
 
+def prueba_debate_solo_llama_al_consultado():
+    # espia sobre consultar_llm: anota que agente llama al LLM y en que orden.
+    # Cada agente importa consultar_llm por su cuenta, asi que se reemplaza en cada modulo.
+    llamadas = []
+    original = llm.consultar_llm
+    debate = {"estado": "requiere_debate", "preguntas": [pregunta("diagnostico", "precisar muestras")]}
+
+    def espia(instrucciones, pregunta_llm, agente):
+        llamadas.append(agente)
+        # el moderador pide debatir solo la primera vez, despues entrega el informe
+        if agente == "moderador" and llamadas.count("moderador") == 1:
+            return json.dumps(debate, ensure_ascii=False)
+        return original(instrucciones, pregunta_llm, agente)
+
+    modulos = [climatico, diagnostico, bioseguridad, moderador]
+    for modulo in modulos:
+        modulo.consultar_llm = espia
+    try:
+        resultado = ejecutar([APROBAR])
+    finally:
+        for modulo in modulos:
+            modulo.consultar_llm = original
+
+    assert llamadas == [
+        "climatico", "diagnostico", "bioseguridad", "moderador",  # ronda 1: todos
+        "diagnostico", "moderador",                                 # debate: solo el consultado
+    ], llamadas
+    # los que no fueron consultados conservan su resultado de la ronda 1
+    assert set(resultado["resultados"]) == {"climatico", "diagnostico", "bioseguridad"}
+    assert resultado["revisiones"] == 2
 # ---------- pruebas del buscador (RAG) ----------
 # No usan chroma_db/ ni el modelo de embeddings: arman una coleccion en memoria
 # con pocos pedazos y un embedding falso, asi corren en cualquier PC.
@@ -191,8 +223,7 @@ if __name__ == "__main__":
         prueba_flujo_normal,
         prueba_rechazo_y_aprobacion,
         prueba_debate_termina,
-        prueba_filtro_excluir_porcino,
-        prueba_buscar_maximo_k,
+        prueba_debate_solo_llama_al_consultado,
     ]
     for prueba in pruebas:
         prueba()

@@ -23,8 +23,8 @@ class Estado(TypedDict):
     caso: Caso
 
     # el JSON que devuelve cada agente, ej: {"climatico": {...}}
-    # operator.or_ junta los diccionarios porque los agentes escriben
-    # al mismo tiempo y si no se pisarian
+    # operator.or_ junta los resultados que cada agente va entregando;
+    # sin eso, cada agente reemplazaria el diccionario entero
     resultados: Annotated[dict, operator.or_]
 
     # lo que el moderador le pide aclarar a cada agente (si pide algo)
