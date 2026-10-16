@@ -1,6 +1,8 @@
 import copy
 import json
 
+import chromadb
+from chromadb.api.types import EmbeddingFunction
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END
 from langgraph.types import Command
@@ -9,6 +11,7 @@ from vet_agent import llm
 from vet_agent.agentes import climatico, diagnostico, bioseguridad, moderador
 from vet_agent.config import MAX_RONDAS
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
+from vet_agent.rag import buscar
 
 APROBAR = {"aprobado": True, "comentarios": ""}
 RECHAZAR = {"aprobado": False, "comentarios": "falta informacion de humedad"}
@@ -142,6 +145,71 @@ def prueba_debate_solo_llama_al_consultado():
     # los que no fueron consultados conservan su resultado de la ronda 1
     assert set(resultado["resultados"]) == {"climatico", "diagnostico", "bioseguridad"}
     assert resultado["revisiones"] == 2
+# ---------- pruebas del buscador (RAG) ----------
+# No usan chroma_db/ ni el modelo de embeddings: arman una coleccion en memoria
+# con pocos pedazos y un embedding falso, asi corren en cualquier PC.
+
+class EmbeddingFalso(EmbeddingFunction):
+    """Vectores fijos y baratos: alcanza para probar filtros y cantidades."""
+
+    def __init__(self):
+        pass
+
+    def __call__(self, input):
+        return [[float(len(t) % 7), 1.0, float(t.count("a"))] for t in input]
+
+    @staticmethod
+    def name():
+        return "embedding_falso"
+
+    def get_config(self):
+        return {}
+
+    @staticmethod
+    def build_from_config(config):
+        return EmbeddingFalso()
+
+
+PEDAZOS = [
+    ("PRRS en cerdos: ELISA en fluidos orales", "porcino"),
+    ("Síndrome reproductivo y respiratorio porcino", "porcino"),
+    ("Vigilancia de PRRS en granjas de cerdos", "porcino"),
+    ("Influenza aviar H5N1 en aves de corral", "aviar"),
+    ("RT-PCR para influenza aviar", "aviar"),
+    ("Toma y envío de muestras al laboratorio", "general"),
+]
+
+
+def con_buscador_de_prueba(prueba):
+    """Corre `prueba` con buscar.py apuntando a una coleccion en memoria y la deja como estaba."""
+    cliente_original, ef_original = buscar._cliente, buscar._ef
+    buscar._cliente, buscar._ef = chromadb.EphemeralClient(), EmbeddingFalso()
+    try:
+        col = buscar._cliente.get_or_create_collection("prueba_md", embedding_function=buscar._ef)
+        col.add(ids=[f"P{i}" for i in range(len(PEDAZOS))], documents=[t for t, _ in PEDAZOS],
+                metadatas=[{"doc_id": f"P{i}", "enfermedad": e, "titulo": t} for i, (t, e) in enumerate(PEDAZOS)])
+        prueba()
+    finally:
+        buscar._cliente.delete_collection("prueba_md")
+        buscar._cliente, buscar._ef = cliente_original, ef_original
+
+
+def prueba_filtro_excluir_porcino():
+    def revisar():
+        sin = buscar.buscar_crudo("prueba_md", "PRRS en cerdos", k=6)
+        assert sin and all(p["enfermedad"] != "porcino" for p in sin), "devolvió pedazos porcinos"
+        con = buscar.buscar_crudo("prueba_md", "PRRS en cerdos", k=6, excluir_porcino=False)
+        assert any(p["enfermedad"] == "porcino" for p in con), "sin el filtro deberían aparecer porcinos"
+    con_buscador_de_prueba(revisar)
+
+
+def prueba_buscar_maximo_k():
+    def revisar():
+        for k in (1, 2, 3, 50):  # 50 es mas que los pedazos que hay
+            texto = buscar.buscar("prueba_md", "influenza aviar", k=k, excluir_porcino=False)
+            assert len(texto.split("\n\n---\n\n")) <= k, f"buscar() devolvió más de {k}"
+            assert len(buscar.buscar_crudo("prueba_md", "influenza aviar", k=k)) <= k
+    con_buscador_de_prueba(revisar)
 
 
 if __name__ == "__main__":

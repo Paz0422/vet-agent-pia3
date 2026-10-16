@@ -2,10 +2,10 @@
 """Mide si el buscador encuentra el documento correcto.
 
 Uso (raiz del repo, despues de indexar_md):
-    python -m vet_agent.rag.probar_rag                               # coleccion "diagnostico_md"
-    python -m vet_agent.rag.probar_rag --coleccion diagnostico_md_v1 # otra coleccion
+    python -m vet_agent.rag.probar_rag                               # cada pregunta en su coleccion
+    python -m vet_agent.rag.probar_rag --coleccion diagnostico_md_v1 # todas contra una coleccion
 
-Lee corpus/preguntas_prueba.csv (pregunta, doc_esperado, nota). doc_esperado
+Lee corpus/preguntas_prueba.csv (pregunta, doc_esperado, nota, coleccion). doc_esperado
 puede tener varios documentos validos separados por ";" (por ejemplo
 "D22;D8"): la pregunta acierta si CUALQUIERA aparece entre los 5 pedazos.
 Recall@5 = preguntas acertadas / total de preguntas.
@@ -57,12 +57,44 @@ def _recall(posiciones: list) -> str:
     return f"{aciertos}/{len(posiciones)} = {aciertos / len(posiciones):.0%}" if posiciones else "sin preguntas"
 
 
+def probar_todas(preguntas: pd.DataFrame) -> None:
+    """Cada pregunta contra la coleccion de su columna "coleccion"; resumen por coleccion."""
+    resumen, fallidas = [], []
+    for coleccion, grupo in preguntas.groupby("coleccion", sort=False):
+        try:
+            indexados = docs_indexados(coleccion)
+        except Exception as e:
+            print(f"No pude buscar en '{coleccion}' ({e}).")
+            continue
+        posiciones, presentes = [], []
+        for f in grupo.itertuples():
+            p = posicion(coleccion, f.pregunta, f.doc_esperado)
+            presente = any(d in indexados for d in esperados(f.doc_esperado))
+            posiciones.append(p)
+            presentes.append(presente)
+            if not p:
+                fallidas.append({"coleccion": coleccion, "esperado": f.doc_esperado,
+                                 "indexado": "sí" if presente else "no", "pregunta": f.pregunta[:90]})
+        resumen.append({"coleccion": coleccion, "preguntas": len(grupo), f"Recall@{K} total": _recall(posiciones),
+                        f"Recall@{K} solo docs indexados": _recall([p for p, ok in zip(posiciones, presentes) if ok])})
+    print("Preguntas en BORRADOR (falta que Investigacion las valide)\n")
+    print(pd.DataFrame(resumen).to_string(index=False))
+    print(f"\nPreguntas que fallaron ({len(fallidas)}):")
+    print(pd.DataFrame(fallidas).to_string(index=False) if fallidas else "   ninguna")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Recall@5 de las preguntas de prueba")
-    parser.add_argument("--coleccion", default=COLECCION, help="coleccion de Chroma a probar")
+    parser.add_argument("--coleccion", help="probar TODAS las preguntas contra esta coleccion "
+                                            "(sin esto: cada pregunta en la de su columna 'coleccion')")
     coleccion = parser.parse_args().coleccion
 
-    preguntas = pd.read_csv(ARCHIVO_PREGUNTAS, dtype=str, encoding="utf-8-sig")
+    preguntas = pd.read_csv(ARCHIVO_PREGUNTAS, dtype=str, encoding="utf-8-sig").fillna("")
+    if not coleccion:
+        if "coleccion" not in preguntas:
+            preguntas["coleccion"] = COLECCION
+        probar_todas(preguntas)
+        return
     esperado = preguntas.doc_esperado.str.strip()
     try:
         indexados = docs_indexados(coleccion)

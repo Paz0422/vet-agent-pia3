@@ -1,4 +1,8 @@
-"""PDF que ya estan en el repo (corpus/D/) -> Markdown, sin internet.
+"""PDF locales (corpus/D/) -> Markdown, sin internet.
+
+Los PDF ya no se suben al repo (git los ignora): se usa cuando Investigacion
+entrega un PDF a mano. Los 18 .md que salieron de los PDF originales del eje D
+estan subidos en corpus/md/diagnostico/.
 
 Uso (raiz del repo):
     python -m vet_agent.rag.pdf_local                          # corpus/D -> corpus/md/diagnostico

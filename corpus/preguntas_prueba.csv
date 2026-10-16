@@ -1,13 +1,29 @@
-pregunta,doc_esperado,nota
-¿Qué medidas contempla el plan de contingencia del SAG ante un brote de influenza aviar en Chile?,D3,"borrador, falta validar con Investigación; sale del título de D3"
-¿Qué pruebas recomienda la OMSA para diagnosticar la influenza aviar altamente patógena?,D8,"borrador, falta validar con Investigación; sale del título de D8"
-¿Cómo diagnostica el SAG la influenza aviar con ELISA y RT-PCR en tiempo real?,D22,"borrador, falta validar con Investigación; sale del título de D22"
-¿Cómo se toman muestras de aves para detectar influenza A y enfermedad de Newcastle?,D27,"borrador, falta validar con Investigación; sale del título de D27"
-¿Qué ensayo de RT-PCR en tiempo real detecta influenza tipo A y los subtipos H5 y H7?,D33,"borrador, falta validar con Investigación; sale del título de D33"
-¿Se puede usar sangre en tiras de papel filtro en vez de suero para detectar anticuerpos de influenza aviar en aves silvestres?,D23,"borrador, falta validar con Investigación; sale del título de D23"
-¿Qué impacto tuvo el H5N1 altamente patógeno en las poblaciones de aves marinas?,D24,"borrador, falta validar con Investigación; sale del título de D24"
-¿Qué kit ELISA de IDEXX detecta anticuerpos contra influenza aviar?,D20,"borrador, falta validar con Investigación; sale del título de D20 (D11 también nombra el kit)"
-¿Qué kits comerciales aprueba el SAG para diagnosticar influenza aviar?,D11,"borrador, falta validar con Investigación; sale del título de D11"
-"¿Cómo se recolectan, envían y almacenan las muestras para diagnóstico?",D10,"borrador, falta validar con Investigación; sale del título de D10"
-¿Cómo se valida una prueba de diagnóstico de enfermedades infecciosas en animales?,D7,"borrador, falta validar con Investigación; sale del título de D7"
-¿Qué información mínima hay que reportar en un experimento de PCR cuantitativa en tiempo real?,D32,"borrador, falta validar con Investigación; sale del título de D32"
+pregunta,doc_esperado,nota,coleccion
+¿Qué medidas contempla el plan de contingencia del SAG ante un brote de influenza aviar en Chile?,D3,"borrador, falta validar con Investigación; sale del título de D3",diagnostico_md
+¿Qué pruebas recomienda la OMSA para diagnosticar la influenza aviar altamente patógena?,D8,"borrador, falta validar con Investigación; sale del título de D8",diagnostico_md
+¿Cómo diagnostica el SAG la influenza aviar con ELISA y RT-PCR en tiempo real?,D22,"borrador, falta validar con Investigación; sale del título de D22",diagnostico_md
+¿Cómo se toman muestras de aves para detectar influenza A y enfermedad de Newcastle?,D27,"borrador, falta validar con Investigación; sale del título de D27",diagnostico_md
+¿Qué ensayo de RT-PCR en tiempo real detecta influenza tipo A y los subtipos H5 y H7?,D33,"borrador, falta validar con Investigación; sale del título de D33",diagnostico_md
+¿Se puede usar sangre en tiras de papel filtro en vez de suero para detectar anticuerpos de influenza aviar en aves silvestres?,D23,"borrador, falta validar con Investigación; sale del título de D23",diagnostico_md
+¿Qué impacto tuvo el H5N1 altamente patógeno en las poblaciones de aves marinas?,D24,"borrador, falta validar con Investigación; sale del título de D24",diagnostico_md
+¿Qué kit ELISA de IDEXX detecta anticuerpos contra influenza aviar?,D20,"borrador, falta validar con Investigación; sale del título de D20 (D11 también nombra el kit)",diagnostico_md
+¿Qué kits comerciales aprueba el SAG para diagnosticar influenza aviar?,D11,"borrador, falta validar con Investigación; sale del título de D11",diagnostico_md
+"¿Cómo se recolectan, envían y almacenan las muestras para diagnóstico?",D10,"borrador, falta validar con Investigación; sale del título de D10",diagnostico_md
+¿Cómo se valida una prueba de diagnóstico de enfermedades infecciosas en animales?,D7,"borrador, falta validar con Investigación; sale del título de D7",diagnostico_md
+¿Qué información mínima hay que reportar en un experimento de PCR cuantitativa en tiempo real?,D32,"borrador, falta validar con Investigación; sale del título de D32",diagnostico_md
+¿Cómo se dispersa el virus de la influenza aviar por el viento desde granjas avícolas con brotes?,A2;CLI-131,"borrador, falta validar con Investigación",climatico_md
+¿Qué factores explicaron la dinámica espacio-temporal de la influenza aviar H5N1 en Chile?,A4;CLI-020,"borrador, falta validar con Investigación",climatico_md
+¿Qué papel tuvieron las aves silvestres en la panzootia mundial de influenza aviar H5 entre 2020 y 2023?,CLI-017,"borrador, falta validar con Investigación",climatico_md
+¿Cómo influyen la lluvia y las aves silvestres en los brotes de influenza aviar en aves de corral de Australia?,CLI-009,"borrador, falta validar con Investigación",climatico_md
+¿Se pueden predecir brotes de H5N1 con datos de clima extremo y de migración de aves?,CLI-024,"borrador, falta validar con Investigación",climatico_md
+¿Qué relación hay entre los brotes de influenza aviar altamente patógena y las condiciones meteorológicas en Japón?,CLI-064,"borrador, falta validar con Investigación",climatico_md
+¿Cómo cambia el calentamiento climático el impacto de la influenza aviar altamente patógena?,CLI-098,"borrador, falta validar con Investigación",climatico_md
+¿Cómo se usan muestreadores pasivos para vigilar virus de influenza aviar en humedales?,CLI-087,"borrador, falta validar con Investigación",climatico_md
+¿Qué tan eficaz es la limpieza y desinfección de vehículos y jaulas de transporte frente a la influenza aviar?,BIO-009,"borrador, falta validar con Investigación",bioseguridad_md
+¿Qué fallas de bioseguridad se encontraron en granjas avícolas afectadas por influenza aviar altamente patógena?,BIO-041;BIO-028,"borrador, falta validar con Investigación",bioseguridad_md
+¿Qué medidas contempla el plan de contingencia del SAG para la influenza aviar?,F1;E7,"borrador, falta validar con Investigación",bioseguridad_md
+¿Cómo se compostan las aves muertas durante la respuesta a un brote de influenza aviar altamente patógena?,C10,"borrador, falta validar con Investigación",bioseguridad_md
+¿Cómo se despuebla a gallinas ponedoras enjauladas usando espuma con dióxido de carbono y nitrógeno?,C11,"borrador, falta validar con Investigación",bioseguridad_md
+¿Qué medidas de bioseguridad deben seguir las personas en una emergencia zoosanitaria por influenza aviar?,E5,"borrador, falta validar con Investigación",bioseguridad_md
+¿Qué niveles de mortalidad permiten sospechar influenza aviar en gallinas ponedoras?,C17;C18,"borrador, falta validar con Investigación",bioseguridad_md
+¿Qué factores de riesgo hubo para la introducción de H5N1 en granjas comerciales de pavos en Estados Unidos?,BIO-054,"borrador, falta validar con Investigación",bioseguridad_md
