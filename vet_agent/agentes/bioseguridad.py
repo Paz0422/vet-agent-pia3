@@ -5,8 +5,8 @@ from vet_agent.agentes.base import preparar_pregunta, a_texto, SIN_CONTEXTO
 
 
 def bioseguridad(estado: Estado) -> dict:
-    # en la primera ronda los otros agentes corren al mismo tiempo,
-    # asi que sus hallazgos recien estan disponibles si hay una segunda ronda
+    # corre al final de la cadena (climatico -> diagnostico -> bioseguridad),
+    # asi que desde la primera ronda ya ve los hallazgos de los otros dos agentes
     previos = {
         agente: salida
         for agente, salida in estado.get("resultados", {}).items()
