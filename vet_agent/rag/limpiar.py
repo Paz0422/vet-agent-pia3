@@ -7,6 +7,8 @@ Uso (raiz del repo):
 Borra:
 - corpus/md/_tmp_pdf/       PDF temporales que quedaron de una descarga cortada
 - los .md descartados en la validacion (Pagina equivocada, Duplicado, Excluido)
+- los .md sueltos en corpus/md/ (sin carpeta de coleccion): los dejaba el antiguo
+  descargar.py; los vigentes estan en corpus/md/<coleccion>/
 - las carpetas __pycache__ del repo (fuera de .venv)
 - los logs de corridas anteriores (en corpus/md/_logs/ se deja el mas nuevo)
 - lo que quedaba del pipeline .txt: corpus/txt/, corpus/escaneados_*.txt y la
@@ -60,6 +62,7 @@ def a_borrar() -> tuple[list[tuple[str, pathlib.Path]], list[tuple[str, str, int
             ruta = RAIZ / f.archivo
             if ruta.exists():
                 lista.append((f".md descartado ({f.estado})", ruta))
+    lista += [(".md suelto (descargar.py antiguo)", p) for p in sorted(MD.glob("*.md"))]
     for p in RAIZ.rglob("__pycache__"):
         if not _dentro(p, RAIZ / ".venv"):
             lista.append(("__pycache__", p))

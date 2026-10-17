@@ -17,6 +17,8 @@ Ya no hay pipeline `.txt` (se retiraron `extraer.py`, `indexar.py`, `corpus/txt/
 3. `python -m vet_agent.rag.pdf_local`: pasa a Markdown los PDF que haya en `D/` (aplica `arreglos.json`).
 4. `python -m vet_agent.rag.limpiar_texto`, luego `validar` e `indexar_md`.
 
+Tampoco se usa ya el scraper original de la Tarea 8 (`descargar.py` con `fuentes_D.csv`): la descarga la hace `descargar_md` a partir del Excel de fuentes. Si en tu PC quedaron `.md` sueltos en `corpus/md/` (sin carpeta de colección), son de ese script; `python -m vet_agent.rag.limpiar` los borra.
+
 `corpus/md/` no se sube a git (se regenera con los pasos de arriba), **salvo 18 documentos del eje D** que no se pueden bajar automáticamente y venían de PDF: D3, D5, D6, D9, D10, D14, D15, D16, D17, D18, D20, D21, D24, D25, D32, D33, D34 y D35. Esos `.md` sí están en el repo; no los borres.
 
 Las notas de abajo sobre la "Tarea 2" siguen valiendo: esos arreglos se aplican ahora desde `pdf_local.py`.

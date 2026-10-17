@@ -16,6 +16,7 @@ class Caso(TypedDict, total=False):
     historial_brotes: str
     movimientos_animales: str
     manejo_bioseguridad: str      # desinfeccion, cuarentena, visitas...
+    ventas_tests: str             # venta/uso de kits diagnosticos en la zona
 
 
 # Ficha compartida que recorre el grafo
@@ -33,10 +34,8 @@ class Estado(TypedDict):
     # el ultimo JSON completo del moderador, incluye el borrador del informe
     evaluacion: dict
 
-      # cuantas veces ha evaluado el moderador, para no quedar en un loop infinito
+    # cuantas veces ha evaluado el moderador, para no quedar en un loop infinito
     revisiones: int
 
     # lo que decidio el revisor humano: {"aprobado": True/False, "comentarios": "..."}
     decision_humana: dict
-
-    ventas_tests: str             # venta/uso de kits diagnosticos en la zona

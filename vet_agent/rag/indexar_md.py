@@ -4,8 +4,8 @@ Uso (raiz del repo):
     python -m vet_agent.rag.indexar_md                                   # las 3 colecciones *_md
     python -m vet_agent.rag.indexar_md --carpeta corpus/md/diagnostico --coleccion diagnostico_md
 
-Es igual que indexar.py, pero lee .md, corta con cortar_md() (respeta los
-titulos) y NUNCA toca la coleccion "diagnostico" del pipeline .txt.
+Lee los .md, los corta con cortar_md() (respeta los titulos) y solo escribe
+en colecciones *_md.
 
 - Metadatos: si el id esta en metadatos.csv se usan esos; si no, los de la
   cabecera del .md (titulo, institucion, anio, enfermedad...).
@@ -23,7 +23,7 @@ from vet_agent.rag import cabecera
 from vet_agent.rag.chunking import cortar_md
 
 RAIZ = pathlib.Path(__file__).resolve().parents[2]
-MODELO = "paraphrase-multilingual-MiniLM-L12-v2"  # el mismo de indexar.py, para comparar parejo
+MODELO = "paraphrase-multilingual-MiniLM-L12-v2"  # el mismo que usa buscar.py para las preguntas
 REPORTE = RAIZ / "corpus" / "md" / "reporte_validacion.xlsx"
 COLECCIONES = {"climatico": "climatico_md", "diagnostico": "diagnostico_md", "bioseguridad": "bioseguridad_md"}
 CAMPOS = ("titulo", "institucion", "anio", "enfermedad", "doi", "ruta", "url_origen", "fuente_metadatos")
@@ -38,9 +38,9 @@ def aprobados(carpeta: pathlib.Path) -> set[str] | None:
 
 
 def indexar(carpeta: pathlib.Path, coleccion: str) -> None:
-    # Solo colecciones *_md: asi nunca se pisa "diagnostico" ni otra del pipeline .txt
+    # Solo colecciones *_md: como cada corrida borra la coleccion, asi no se pisa otra por error
     if not coleccion.endswith("_md"):
-        raise SystemExit(f"'{coleccion}' no termina en _md; esas son del pipeline .txt")
+        raise SystemExit(f"'{coleccion}' no termina en _md; indexar_md solo escribe en colecciones *_md")
 
     ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODELO)
     cliente = chromadb.PersistentClient(path=str(RAIZ / "chroma_db"))
