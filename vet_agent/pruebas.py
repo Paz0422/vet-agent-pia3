@@ -8,7 +8,7 @@ from langgraph.graph import END
 from langgraph.types import Command
 
 from vet_agent import llm
-from vet_agent.agentes import climatico, diagnostico, bioseguridad, moderador
+from vet_agent.agentes import base, climatico, diagnostico, bioseguridad, moderador
 from vet_agent.config import MAX_RONDAS
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
 from vet_agent.rag import buscar
@@ -212,6 +212,51 @@ def prueba_buscar_maximo_k():
     con_buscador_de_prueba(revisar)
 
 
+# ---------- pruebas de la evidencia que reciben los agentes ----------
+
+CASO_AVIAR = {"especie": "aves de corral", "signos_clinicos": ["mortalidad súbita"],
+              "resultados_laboratorio": ["RT-PCR positivo a H5N1"]}
+
+
+def prueba_contexto_rag_sin_coleccion():
+    # sin chroma_db (o sin la coleccion) el agente sigue, con SIN_CONTEXTO y sin evidencia
+    cliente_original = buscar._cliente
+    buscar._cliente = chromadb.EphemeralClient()  # vacio: no existe climatico_md
+    try:
+        assert base.contexto_rag("climatico", CASO_AVIAR) == (base.SIN_CONTEXTO, [])
+    finally:
+        buscar._cliente = cliente_original
+
+
+def prueba_evidencia_y_fuentes_reales():
+    # los tres agentes buscan en la coleccion de prueba con un caso aviar
+    def revisar():
+        colecciones_originales = dict(base.COLECCIONES)
+        base.COLECCIONES.update({a: "prueba_md" for a in base.COLECCIONES})
+        try:
+            app = construir_grafo(InMemorySaver())
+            config = {"configurable": {"thread_id": "evidencia"}}
+            estado = estado_inicial() | {"caso": CASO_AVIAR}
+            resultado = app.invoke(estado, config)
+        finally:
+            base.COLECCIONES.clear()
+            base.COLECCIONES.update(colecciones_originales)
+
+        no_porcinos = {f"P{i}" for i, (_, e) in enumerate(PEDAZOS) if e != "porcino"}
+        for agente, salida in resultado["resultados"].items():
+            ids = [e["doc_id"] for e in salida["evidencia"]]
+            assert ids and len(ids) <= base.K_FRAGMENTOS, f"{agente}: {ids}"
+            assert set(ids) <= no_porcinos, f"{agente} recibió documentos porcinos: {ids}"
+        # los "fuentes" simulados se reemplazan por los doc_id recuperados
+        clima = resultado["resultados"]["climatico"]
+        assert clima["factores_de_riesgo"][0]["fuentes"] == [e["doc_id"] for e in clima["evidencia"]]
+        # el informe cita la union de la evidencia de los tres agentes, sin repetir
+        citados = [f["doc_id"] for f in resultado["evaluacion"]["informe"]["fuentes_utilizadas"]]
+        todos = {e["doc_id"] for s in resultado["resultados"].values() for e in s["evidencia"]}
+        assert sorted(citados) == sorted(todos)
+    con_buscador_de_prueba(revisar)
+
+
 if __name__ == "__main__":
     pruebas = [
         prueba_moderador_informe_final,
@@ -226,6 +271,8 @@ if __name__ == "__main__":
         prueba_debate_solo_llama_al_consultado,
         prueba_filtro_excluir_porcino,
         prueba_buscar_maximo_k,
+        prueba_contexto_rag_sin_coleccion,
+        prueba_evidencia_y_fuentes_reales,
     ]
     for prueba in pruebas:
         prueba()

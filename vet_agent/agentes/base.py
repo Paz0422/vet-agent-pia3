@@ -1,9 +1,27 @@
 import json
 
+from vet_agent import llm
 from vet_agent.estado import Estado
+from vet_agent.rag import buscar
 
-# mientras no exista el RAG, los agentes reciben este texto como contexto
+# si no se pudo buscar (no hay chroma_db, falta la coleccion, etc.) el agente recibe esto
 SIN_CONTEXTO = "(Aún no hay documentos recuperados. Indícalo como vacío de respaldo documental.)"
+
+# cada agente busca en su propia coleccion de Chroma
+COLECCIONES = {
+    "climatico": "climatico_md",
+    "diagnostico": "diagnostico_md",
+    "bioseguridad": "bioseguridad_md",
+}
+
+# que partes del caso van en la consulta de cada agente (ademas de especie y signos)
+CAMPOS_CONSULTA = {
+    "climatico": ["clima", "ubicacion", "periodo"],
+    "diagnostico": ["resultados_laboratorio", "mortalidad"],
+    "bioseguridad": ["manejo_bioseguridad", "movimientos_animales", "sistema_productivo"],
+}
+
+K_FRAGMENTOS = 5
 
 
 def a_texto(datos) -> str:
@@ -25,3 +43,62 @@ def preparar_pregunta(estado: Estado, agente: str) -> str:
         pregunta += f"\n\nEl moderador solicita aclarar lo siguiente: {aclaracion}"
 
     return pregunta
+
+
+def _en_una_linea(datos) -> str:
+    # la consulta va al buscador, no al LLM: mejor texto corrido que JSON
+    if isinstance(datos, dict):
+        return ", ".join(f"{k} {v}" for k, v in datos.items())
+    if isinstance(datos, list):
+        return ", ".join(str(d) for d in datos)
+    return str(datos)
+
+
+def consulta_del_caso(agente: str, caso: dict) -> str:
+    campos = ["especie", "signos_clinicos"] + CAMPOS_CONSULTA.get(agente, [])
+    return ". ".join(_en_una_linea(caso[c]) for c in campos if caso.get(c))
+
+
+def contexto_rag(agente: str, caso: dict) -> tuple[str, list[dict]]:
+    """Busca en la coleccion del agente. Devuelve (texto para el prompt, fragmentos crudos).
+
+    Si Chroma falla o la coleccion no existe devuelve (SIN_CONTEXTO, []) para no cortar el grafo.
+    """
+    coleccion = COLECCIONES[agente]
+    consulta = consulta_del_caso(agente, caso)
+    # en un caso que no es de cerdos solo sirven los documentos "aviar" y "general"
+    excluir_porcino = "porcino" not in str(caso.get("especie", "")).lower()
+    try:
+        fragmentos = buscar.buscar_crudo(coleccion, consulta, K_FRAGMENTOS, excluir_porcino)
+        texto = buscar.buscar(coleccion, consulta, K_FRAGMENTOS, excluir_porcino)
+    except Exception as e:
+        print(f"[{agente}] sin contexto RAG: no pude buscar en '{coleccion}' ({e})")
+        return SIN_CONTEXTO, []
+    return (texto or SIN_CONTEXTO), fragmentos
+
+
+def _rellenar_fuentes(datos, doc_ids: list[str]):
+    # recorre la respuesta y pone los doc_id reales en cada campo "fuentes"
+    if isinstance(datos, dict):
+        for clave, valor in datos.items():
+            if clave == "fuentes" and isinstance(valor, list):
+                datos[clave] = list(doc_ids)
+            else:
+                _rellenar_fuentes(valor, doc_ids)
+    elif isinstance(datos, list):
+        for d in datos:
+            _rellenar_fuentes(d, doc_ids)
+
+
+def con_evidencia(salida: dict, fragmentos: list[dict]) -> dict:
+    """Agrega a la salida del agente los fragmentos recuperados en "evidencia".
+
+    Con la redaccion simulada, ademas reemplaza los "fuentes" de ejemplo por los doc_id reales.
+    """
+    salida["evidencia"] = [
+        {campo: f.get(campo, "") for campo in ("doc_id", "institucion", "anio", "titulo", "texto")}
+        for f in fragmentos
+    ]
+    if llm.USAR_SIMULACION:
+        _rellenar_fuentes(salida, list(dict.fromkeys(f["doc_id"] for f in fragmentos)))
+    return salida
