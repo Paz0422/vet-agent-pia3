@@ -8,7 +8,7 @@ RAIZ = pathlib.Path(__file__).resolve().parents[2]
 RUTA_DB = str(RAIZ / "chroma_db")
 
 _ef = None  # el modelo de embeddings se carga la primera vez que se busca (no al importar)
-_cliente = chromadb.PersistentClient(path=str(RAIZ / "chroma_db"))
+_cliente = chromadb.PersistentClient(path=RUTA_DB)
 
 
 def _embedding():

@@ -8,9 +8,6 @@ from vet_agent.agentes.moderador import moderador
 from vet_agent.revision_humana import revision_humana
 from vet_agent.config import MAX_RONDAS
 
-# el moderador evalua como maximo 3 veces, despues pasa si o si a revision humana
-MAX_REVISIONES = 3
-
 # orden fijo de la cadena: con un solo modelo local (LM Studio) corren de a uno
 ESPECIALISTAS = ["climatico", "diagnostico", "bioseguridad"]
 
