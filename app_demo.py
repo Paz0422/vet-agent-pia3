@@ -65,14 +65,67 @@ def mostrar_evidencia(resultados: dict):
             st.json({k: v for k, v in salida.items() if k != "evidencia"}, expanded=False)
 
 
+PENDIENTE = "Se completa al conectar el LLM"
+COLOR_RIESGO = {"bajo": "green", "moderado": "orange", "alto": "red", "muy_alto": "red"}
+
+
+def seccion(titulo: str, contenido) -> bool:
+    """Titulo de la seccion; si no hay contenido, el aviso de pendiente. Devuelve si hay algo que mostrar."""
+    st.markdown(f"#### {titulo}")
+    if contenido in (None, "", [], {}):
+        st.caption(PENDIENTE)
+        return False
+    return True
+
+
+def citas(ids) -> str:
+    return " ".join(f"`{i}`" for i in ids or [])
+
+
+def lista(items, formato):
+    # el LLM real podria devolver textos sueltos en vez de diccionarios: se muestran tal cual
+    for item in items:
+        st.markdown("- " + (formato(item) if isinstance(item, dict) else str(item)))
+
+
 def mostrar_informe(resultado: dict, pausa: dict | None):
     st.subheader("Borrador del informe")
     informe = (pausa or {}).get("informe") or resultado.get("evaluacion", {}).get("informe", {})
-    col1, col2 = st.columns(2)
-    col1.metric("Nivel de riesgo", informe.get("nivel_riesgo_global", "no determinado"))
-    col2.metric("Revisiones del moderador", resultado.get("revisiones", 0))
-    st.write(informe.get("resumen_ejecutivo", ""))
-    st.json({k: v for k, v in informe.items() if k != "fuentes_utilizadas"}, expanded=False)
+
+    if seccion("Resumen", informe.get("resumen_ejecutivo")):
+        st.write(informe["resumen_ejecutivo"])
+
+    nivel = informe.get("nivel_riesgo_global")
+    if seccion("Nivel de riesgo", nivel):
+        color = COLOR_RIESGO.get(nivel, "gray")
+        st.markdown(f":{color}-badge[{nivel.replace('_', ' ').upper()}]")
+        if informe.get("justificacion_riesgo"):
+            st.write(informe["justificacion_riesgo"])
+    st.caption(f"Revisiones del moderador: {resultado.get('revisiones', 0)}")
+
+    if seccion("Riesgos", informe.get("riesgos_identificados")):
+        lista(informe["riesgos_identificados"], lambda r: (
+            f"**{r.get('riesgo', '')}** · {r.get('dimension_one_health', '')} · "
+            f"confianza {r.get('confianza', '')} {citas(r.get('evidencia'))}"))
+
+    if seccion("Recomendaciones", informe.get("recomendaciones")):
+        lista(informe["recomendaciones"], lambda r: (
+            f"**{r.get('accion', '')}** · {r.get('prioridad', '').replace('_', ' ')}"
+            + (f" · responsable: {r['responsable_sugerido']}" if r.get("responsable_sugerido") else "")
+            + (" · requiere autoridad sanitaria" if r.get("requiere_autoridad") else "")
+            + f" {citas(r.get('fuentes'))}"))
+
+    if seccion("Protocolos", informe.get("protocolos_bioseguridad")):
+        lista(informe["protocolos_bioseguridad"], str)
+
+    if seccion("Incertidumbres", informe.get("incertidumbres_y_limitaciones")):
+        lista(informe["incertidumbres_y_limitaciones"], str)
+
+    if seccion("Aviso", informe.get("aviso")):
+        st.info(informe["aviso"])
+
+    with st.expander("Ver JSON"):
+        st.json(informe)
 
     if pausa and pausa.get("preguntas_pendientes"):
         st.warning("Preguntas que el moderador dejó sin resolver:")
