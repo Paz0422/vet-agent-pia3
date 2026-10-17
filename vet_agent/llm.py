@@ -11,7 +11,7 @@ RESPUESTAS_SIMULADAS = {
         "resumen_condiciones": "temperaturas bajas y lluvias altas (simulado)",
         "factores_de_riesgo": [
             {"factor": "temperatura baja", "efecto": "favorece",
-             "mecanismo": "mayor persistencia viral en aerosoles",
+             "mecanismo": "mayor persistencia viral en el ambiente y en el agua",
              "tipo": "inferencia", "fuentes": []}
         ],
         "one_health": {"animal": "simulado", "humana": "simulado", "ambiental": "simulado"},
@@ -23,15 +23,18 @@ RESPUESTAS_SIMULADAS = {
     "diagnostico": {
         "agente": "diagnostico",
         "resumen_resultados": {"muestras": 10, "positivos": 4, "proporcion": 0.4, "pruebas": ["RT-PCR"]},
-        "interpretacion": "compatible con circulación de PRRSV (simulado)",
+        "interpretacion": "compatible con circulación de influenza aviar H5N1 (simulado)",
         "probabilidad_presencia": "alta",
         "requiere_confirmacion": True,
         "prueba_confirmatoria_sugerida": "ver documento fuente",
         "senal_ventas_tests": {"anomalia_detectada": False, "descripcion": "sin datos", "causas_alternativas": []},
-        "riesgo_zoonotico": "bajo o nulo en PRRS",
+        "riesgo_zoonotico": "presente en H5N1: ver documento fuente",
         "one_health": {"animal": "simulado", "humana": "simulado", "ambiental": "simulado"},
         "calidad_datos": "muestra pequeña",
-        "afirmaciones": [],
+        "afirmaciones": [
+            {"texto": "la RT-PCR positiva debe confirmarse en el laboratorio oficial (simulado)",
+             "tipo": "inferencia", "fuentes": []}
+        ],
         "confianza": "media",
     },
     "bioseguridad": {
@@ -52,7 +55,7 @@ RESPUESTAS_SIMULADAS = {
     "moderador": {
         "estado": "informe_final",
         "informe": {
-            "resumen_ejecutivo": "caso simulado compatible con PRRS",
+            "resumen_ejecutivo": "caso simulado compatible con influenza aviar H5N1",
             "nivel_riesgo_global": "alto",
             "justificacion_riesgo": "simulado",
             "riesgos_identificados": [],

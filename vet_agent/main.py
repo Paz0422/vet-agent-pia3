@@ -5,6 +5,22 @@ from langgraph.types import Command
 
 from vet_agent.grafo import construir_grafo
 
+# caso de ejemplo (ficticio) de influenza aviar H5N1; tambien lo usa app_demo.py
+CASO_H5N1 = {
+    "especie": "aves de corral (gallinas ponedoras)",
+    "sistema_productivo": "plantel de ponedoras comerciales, 40.000 aves",
+    "ubicacion": "Región de Valparaíso, cerca de un humedal costero",
+    "periodo": "mayo 2026",
+    "signos_clinicos": ["mortalidad súbita", "cianosis de cresta y barbilla",
+                        "caída brusca de la postura", "signos nerviosos"],
+    "mortalidad": "12% en 48 horas en un galpón",
+    "resultados_laboratorio": ["RT-PCR positivo a influenza A (gen M)", "subtipificación H5N1 por RT-PCR"],
+    "clima": {"temperatura_promedio": "10°C", "humedad_relativa": "85%", "precipitaciones": "moderadas"},
+    "historial_brotes": "detecciones de H5N1 en aves silvestres de la costa en temporadas anteriores",
+    "movimientos_animales": "ingreso de pollitas de recría hace 2 semanas; aves migratorias en el humedal a 2 km",
+    "manejo_bioseguridad": "galpones abiertos sin malla antiaves, agua de bebida desde un tranque sin tratar",
+}
+
 
 if __name__ == "__main__":
     # InMemorySaver guarda el estado en memoria mientras corre el programa
@@ -13,21 +29,8 @@ if __name__ == "__main__":
     # thread_id identifica el caso, sirve para retomarlo despues de la pausa
     config = {"configurable": {"thread_id": "caso-prueba-1"}}
 
-    caso = {
-        "especie": "porcino",
-        "sistema_productivo": "plantel de engorda",
-        "ubicacion": "Región de O'Higgins",
-        "periodo": "julio 2026",
-        "signos_clinicos": ["fiebre", "dificultad respiratoria", "abortos en reproductoras"],
-        "mortalidad": "4% semanal, sobre lo normal",
-        "resultados_laboratorio": ["PCR positivo a PRRSV"],
-        "clima": {"temperatura_promedio": "8°C", "precipitaciones": "altas"},
-        "movimientos_animales": "ingreso de 200 lechones hace 3 semanas",
-        "manejo_bioseguridad": "sin cuarentena de ingreso",
-    }
-
     estado_inicial = {
-        "caso": caso,
+        "caso": CASO_H5N1,
         "resultados": {},
         "solicitudes": {},
         "revisiones": 0,

@@ -10,3 +10,4 @@ rapidfuzz
 openpyxl
 defusedxml
 tqdm
+streamlit
