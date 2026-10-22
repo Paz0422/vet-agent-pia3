@@ -4,7 +4,7 @@ Fuente: Drive de Investigación, `EXCEL CON FUENTES`, hoja DOCUMENTOS, filas D1 
 Se excluyen D2 y D26 porque son duplicados de B11/E9 y B4.
 
 - `D/`: aquí estaban los PDF (`D8.pdf`). Desde el 15/10/2026 ya no se suben al repo: su texto está en `md/diagnostico/`. Si Investigación entrega un PDF a mano, se deja en `D/` (git lo ignora) y se convierte con `pdf_local`.
-- `metadatos.csv`: una fila por documento del eje D, con las columnas de la Tarea 1.
+- `metadatos.csv`: contiene una fila por documento del eje D y puede incluir documentos de otros ejes cuando sea necesario complementar sus metadatos. Mantiene las columnas definidas en la Tarea 1.
 
 **Estado:** 26 de 34 documentos (consultados el 14/10/2026).
 
@@ -22,6 +22,21 @@ Tampoco se usa ya el scraper original de la Tarea 8 (`descargar.py` con `fuentes
 `corpus/md/` no se sube a git (se regenera con los pasos de arriba), **salvo 18 documentos del eje D** que no se pueden bajar automáticamente y venían de PDF: D3, D5, D6, D9, D10, D14, D15, D16, D17, D18, D20, D21, D24, D25, D32, D33, D34 y D35. Esos `.md` sí están en el repo; no los borres.
 
 Las notas de abajo sobre la "Tarea 2" siguen valiendo: esos arreglos se aplican ahora desde `pdf_local.py`.
+
+## Metadatos complementarios de otros ejes
+
+El archivo `metadatos.csv`, originalmente destinado a los documentos del eje D, también puede incluir documentos de otros ejes cuando sea necesario completar sus metadatos.
+
+**E7 – Procedimiento P-PP-VE-006 – Contingencia de Influenza Aviar**
+
+- Institución: Servicio Agrícola y Ganadero (SAG).
+- Año: 2007.
+- Enfermedad: aviar.
+- Vigencia: pendiente de confirmación por Investigación.
+
+Los datos de institución y año se obtuvieron del propio documento E7, que indica como fecha de entrada en vigencia el 2 de noviembre de 2007.
+
+Se registran en `metadatos.csv` porque los archivos Markdown generados no se conservan en Git y `indexar_md.py` prioriza la información del CSV.
 
 ## Columna `enfermedad`
 
