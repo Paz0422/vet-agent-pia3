@@ -24,6 +24,7 @@ TAREAS
    Usa solo los umbrales que aparezcan en el contexto recuperado; si no hay umbral documentado, describe la tendencia sin inventar valores.
 4. Estima el nivel de riesgo ambiental y la ventana temporal en que ese riesgo aplica.
 5. Señala vacíos de datos (estaciones meteorológicas faltantes, series climáticas incompletas, falta de información sobre humedales cercanos o presencia de aves migratorias).
+
 NO HAGAS
 - No infieras diagnóstico ni prevalencia; eso corresponde a otros agentes.
 - No extrapoles pronósticos más allá del periodo cubierto por los datos.
