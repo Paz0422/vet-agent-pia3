@@ -11,3 +11,4 @@ openpyxl
 defusedxml
 tqdm
 streamlit
+langchain-openai

@@ -1,8 +1,10 @@
 import json
+import re
 
-# mientras no tengamos LLM trabajamos con respuestas de prueba.
-# cuando este elegido, se cambia a False y se completa la llamada real
-USAR_SIMULACION = True
+from vet_agent.config import (USAR_SIMULACION, LLM_URL, LLM_MODELO,
+                              LLM_TEMPERATURA, LLM_REINTENTOS, LLM_TIMEOUT)
+
+_modelo = None  # se crea la primera vez que se usa
 
 # respuestas de ejemplo con el mismo formato que piden los prompts
 RESPUESTAS_SIMULADAS = {
@@ -77,11 +79,32 @@ def consultar_llm(instrucciones: str, pregunta: str, agente: str) -> str:
     if USAR_SIMULACION:
         return json.dumps(RESPUESTAS_SIMULADAS[agente], ensure_ascii=False)
 
-    # TODO: aca va la llamada real al LLM (la otra semana)
-    raise NotImplementedError("Falta conectar el LLM")
+    mensajes = [("system", instrucciones), ("human", pregunta)]
+    for intento in range(1, LLM_REINTENTOS + 2):
+        texto = _cliente().invoke(mensajes).content
+        try:
+            leer_json(texto)  # solo revisa que sea JSON valido
+            return texto
+        except json.JSONDecodeError:
+            print(f"[{agente}] la respuesta no es JSON valido (intento {intento})")
+    raise ValueError(f"[{agente}] el modelo no entrego JSON valido en {LLM_REINTENTOS + 1} intentos")
+
+
+def _cliente():
+    # LM Studio habla igual que la API de OpenAI, por eso sirve ChatOpenAI
+    global _modelo
+    if _modelo is None:
+        from langchain_openai import ChatOpenAI
+        _modelo = ChatOpenAI(base_url=LLM_URL, api_key="lm-studio", model=LLM_MODELO,
+                             temperature=LLM_TEMPERATURA, timeout=LLM_TIMEOUT,max_retries=0)
+    return _modelo
 
 
 def leer_json(texto: str) -> dict:
-    # a veces los modelos envuelven el JSON en ```json ... ```, se lo sacamos
-    limpio = texto.replace("```json", "").replace("```", "").strip()
-    return json.loads(limpio)
+    # algunos modelos "piensan" en voz alta dentro de <think>...</think>: se borra
+    limpio = re.sub(r"<think>.*?</think>", "", texto, flags=re.DOTALL)
+    # y otros envuelven el JSON en ```json ... ``` o agregan texto: nos quedamos del primer { al ultimo }
+    inicio, fin = limpio.find("{"), limpio.rfind("}")
+    if inicio == -1 or fin == -1:
+        raise json.JSONDecodeError("no hay JSON en la respuesta", limpio, 0)
+    return json.loads(limpio[inicio:fin + 1])

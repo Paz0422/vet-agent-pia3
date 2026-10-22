@@ -13,6 +13,9 @@ from vet_agent.config import MAX_RONDAS
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
 from vet_agent.rag import buscar
 
+# las pruebas siempre usan respuestas de ejemplo, aunque el .env diga otra cosa
+llm.USAR_SIMULACION = True
+
 APROBAR = {"aprobado": True, "comentarios": ""}
 RECHAZAR = {"aprobado": False, "comentarios": "falta informacion de humedad"}
 
