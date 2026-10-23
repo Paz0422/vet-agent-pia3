@@ -5,7 +5,7 @@ from vet_agent.config import MAX_RONDAS
 from vet_agent.estado import Estado
 from vet_agent.llm import consultar_llm, leer_json
 from vet_agent.prompts import PROMPT_MODERADOR, rellenar
-from vet_agent.agentes.base import SIN_CONTEXTO
+from vet_agent.agentes.base import SIN_CONTEXTO, texto_para_prompt
 
 
 def evidencia_unida(resultados: dict) -> list[dict]:
@@ -37,9 +37,8 @@ def moderador(estado: Estado) -> dict:
         for agente, salida in estado["resultados"].items()
     }
     evidencia = evidencia_unida(estado["resultados"])
-    contexto = "\n\n---\n\n".join(
-        f"[{e['doc_id']}] {e['institucion']} {e['anio']} — {e['titulo']}\n{e['texto']}" for e in evidencia
-    ) or SIN_CONTEXTO
+    # la llamada mas pesada: cada fragmento va recortado igual que en los agentes
+    contexto = texto_para_prompt(evidencia) or SIN_CONTEXTO
 
     instrucciones = rellenar(
         PROMPT_MODERADOR,

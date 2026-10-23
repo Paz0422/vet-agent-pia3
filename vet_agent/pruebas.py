@@ -9,7 +9,7 @@ from langgraph.types import Command
 
 from vet_agent import llm
 from vet_agent.agentes import base, climatico, diagnostico, bioseguridad, moderador
-from vet_agent.config import MAX_RONDAS
+from vet_agent.config import MAX_RONDAS, K_FRAGMENTOS
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
 from vet_agent.rag import buscar
 
@@ -221,6 +221,16 @@ CASO_AVIAR = {"especie": "aves de corral", "signos_clinicos": ["mortalidad súbi
               "resultados_laboratorio": ["RT-PCR positivo a H5N1"]}
 
 
+def prueba_recortar_fragmento():
+    assert base.recortar("texto corto", 50) == "texto corto"
+    # corta en el ultimo espacio: no deja "influ" a medias
+    assert base.recortar("influenza aviar altamente patogena", 20) == "influenza aviar […]"
+    # una sola palabra mas larga que el limite se corta igual
+    assert base.recortar("a" * 30, 10) == "a" * 10 + " […]"
+    largo = [{"doc_id": "X", "texto": "palabra " * 500}]
+    assert len(base.texto_para_prompt(largo)) < len(buscar.como_texto(largo))
+
+
 def prueba_contexto_rag_sin_coleccion():
     # sin chroma_db (o sin la coleccion) el agente sigue, con SIN_CONTEXTO y sin evidencia
     cliente_original = buscar._cliente
@@ -248,7 +258,7 @@ def prueba_evidencia_y_fuentes_reales():
         no_porcinos = {f"P{i}" for i, (_, e) in enumerate(PEDAZOS) if e != "porcino"}
         for agente, salida in resultado["resultados"].items():
             ids = [e["doc_id"] for e in salida["evidencia"]]
-            assert ids and len(ids) <= base.K_FRAGMENTOS, f"{agente}: {ids}"
+            assert ids and len(ids) <= K_FRAGMENTOS, f"{agente}: {ids}"
             assert set(ids) <= no_porcinos, f"{agente} recibió documentos porcinos: {ids}"
         # los "fuentes" simulados se reemplazan por los doc_id recuperados
         clima = resultado["resultados"]["climatico"]
@@ -274,6 +284,7 @@ if __name__ == "__main__":
         prueba_debate_solo_llama_al_consultado,
         prueba_filtro_excluir_porcino,
         prueba_buscar_maximo_k,
+        prueba_recortar_fragmento,
         prueba_contexto_rag_sin_coleccion,
         prueba_evidencia_y_fuentes_reales,
     ]
