@@ -17,7 +17,7 @@ LLM_TEMPERATURA = float(os.getenv("LLM_TEMPERATURA", "0.2"))
 LLM_REINTENTOS = int(os.getenv("LLM_REINTENTOS", "2"))
 LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "3600"))
 # tope de tokens de cada respuesta del modelo
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1500"))
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "3000"))
 
 # --- RAG: cuanto texto de los documentos va en cada prompt ---
 # fragmentos que busca cada agente en su coleccion
