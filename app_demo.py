@@ -1,18 +1,29 @@
-﻿"""Demo del sistema: la busqueda de evidencia (RAG) es real, la redaccion sigue simulada.
+﻿"""Demo del sistema: la busqueda de evidencia (RAG) es real; la redaccion es simulada
+o la hace el modelo de LM Studio, segun USAR_SIMULACION en el .env.
 
 Uso (raiz del repo):
     streamlit run app_demo.py
 """
+import time
 import uuid
 
 import streamlit as st
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
+from vet_agent.config import USAR_SIMULACION, LLM_MODELO
 from vet_agent.grafo import construir_grafo, ESPECIALISTAS
 from vet_agent.main import CASO_H5N1
 
-AVISO = "Redacción simulada: el LLM se conectará en LM Studio. La recuperación de evidencia es real."
+if USAR_SIMULACION:
+    AVISO = "Redacción simulada (USAR_SIMULACION=true): no se usa el LLM. La recuperación de evidencia es real."
+else:
+    AVISO = (f"Modelo en uso: {LLM_MODELO} (LM Studio). Con el modelo real el análisis "
+             "puede tardar varios minutos. La recuperación de evidencia es real.")
+
+# nombre que se muestra para cada nodo del grafo mientras corre
+NOMBRE_NODO = {"climatico": "Climático", "diagnostico": "Diagnóstico", "bioseguridad": "Bioseguridad",
+               "moderador": "Moderador", "revision_humana": "Revisión humana"}
 
 
 @st.cache_resource
@@ -23,6 +34,34 @@ def grafo():
 
 def config():
     return {"configurable": {"thread_id": st.session_state.thread_id}}
+
+
+def correr(entrada, titulo: str) -> float:
+    """Corre el grafo mostrando que nodo va terminando, guarda el resultado en la sesion
+    y devuelve cuantos segundos tardo.
+
+    El resultado queda igual que el de grafo().invoke(): el estado completo y, si el grafo
+    se detuvo a esperar la revision humana, la pausa en "__interrupt__".
+    """
+    inicio = time.perf_counter()
+    with st.status(titulo, expanded=True) as estado:
+        for paso in grafo().stream(entrada, config(), stream_mode="updates"):
+            for nodo, cambios in paso.items():
+                if nodo == "__interrupt__":
+                    continue
+                # en las rondas de debate, los agentes no consultados no llaman al LLM ni devuelven cambios
+                detalle = "" if cambios else " (no consultado en esta ronda)"
+                estado.write(f"✅ {NOMBRE_NODO.get(nodo, nodo)} terminó en "
+                             f"{time.perf_counter() - inicio:.0f} s{detalle}")
+        segundos = time.perf_counter() - inicio
+        estado.update(label=f"{titulo} Listo en {segundos:.0f} s", state="complete", expanded=False)
+
+    foto = grafo().get_state(config())
+    resultado = dict(foto.values)
+    if foto.interrupts:
+        resultado["__interrupt__"] = foto.interrupts
+    st.session_state.resultado = resultado
+    return segundos
 
 
 def etiqueta(campo: str) -> str:
@@ -61,11 +100,12 @@ def mostrar_evidencia(resultados: dict):
                 st.markdown(f"**{i}. {cita(e)}**")
                 with st.container(border=True):
                     st.markdown(e["texto"])
-            st.caption("Salida del agente (redacción simulada, con los doc_id reales en «fuentes»):")
+            st.caption("Salida del agente (redacción simulada, con los doc_id reales en «fuentes»):"
+                       if USAR_SIMULACION else f"Salida del agente (redactada por {LLM_MODELO}):")
             st.json({k: v for k, v in salida.items() if k != "evidencia"}, expanded=False)
 
 
-PENDIENTE = "Se completa al conectar el LLM"
+PENDIENTE = "Se completa al conectar el LLM" if USAR_SIMULACION else "El modelo no completó esta sección"
 COLOR_RIESGO = {"bajo": "green", "moderado": "orange", "alto": "red", "muy_alto": "red"}
 
 
@@ -90,6 +130,10 @@ def lista(items, formato):
 
 def mostrar_informe(resultado: dict, pausa: dict | None):
     st.subheader("Borrador del informe")
+    tiempos = [f"el análisis tardó {st.session_state.segundos_analisis:.0f} s"]
+    if st.session_state.get("segundos_revision") is not None:
+        tiempos.append(f"la última revisión del moderador, {st.session_state.segundos_revision:.0f} s")
+    st.caption("⏱️ " + "; ".join(tiempos).capitalize())
     informe = (pausa or {}).get("informe") or resultado.get("evaluacion", {}).get("informe", {})
 
     if seccion("Resumen", informe.get("resumen_ejecutivo")):
@@ -154,8 +198,11 @@ def revision(pausa: dict):
         decision = {"aprobado": False, "comentarios": comentarios}
     if decision:
         # Command(resume=...) le entrega la decision al grafo y sigue desde la pausa
-        with st.spinner("Reanudando el grafo..."):
-            st.session_state.resultado = grafo().invoke(Command(resume=decision), config())
+        titulo = "Cerrando el caso..." if decision["aprobado"] else "El moderador revisa el informe con tus comentarios..."
+        segundos = correr(Command(resume=decision), titulo)
+        # al aprobar solo se cierra el caso: el tiempo que importa es el de un rechazo
+        if not decision["aprobado"]:
+            st.session_state.segundos_revision = segundos
         st.rerun()
 
 
@@ -171,8 +218,9 @@ with st.form("caso"):
 if analizar:
     st.session_state.thread_id = str(uuid.uuid4())
     estado = {"caso": caso, "resultados": {}, "solicitudes": {}, "revisiones": 0, "decision_humana": {}}
-    with st.spinner("Buscando evidencia y corriendo los agentes (la primera vez carga el modelo de embeddings)..."):
-        st.session_state.resultado = grafo().invoke(estado, config())
+    st.session_state.segundos_analisis = correr(
+        estado, "Buscando evidencia y corriendo los agentes (la primera vez carga el modelo de embeddings)...")
+    st.session_state.segundos_revision = None
 
 resultado = st.session_state.get("resultado")
 if resultado:
