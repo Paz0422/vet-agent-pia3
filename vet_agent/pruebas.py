@@ -15,7 +15,7 @@ from vet_agent.agentes import base, climatico, diagnostico, bioseguridad, modera
 from vet_agent.config import MAX_RONDAS, K_FRAGMENTOS
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
 from vet_agent.main import pedir_decision
-from vet_agent.rag import buscar
+from vet_agent.rag import buscar, cabecera, chunking, limpiar_texto
 
 # las pruebas siempre usan respuestas de ejemplo, aunque el .env diga otra cosa
 llm.USAR_SIMULACION = True
@@ -39,18 +39,26 @@ def pregunta(destino, texto="aclarar"):
     return {"agente_destino": destino, "pregunta": texto, "motivo": "prueba"}
 
 
-def ejecutar(decisiones):
-    # corre el grafo entero y va respondiendo cada pausa humana en orden
-    app = construir_grafo(InMemorySaver())
-    config = {"configurable": {"thread_id": "prueba"}}
-    resultado = app.invoke(estado_inicial(), config)
+def ejecutar(decisiones, con_chroma_real=False, caso=None):
+    # corre el grafo entero y va respondiendo cada pausa humana en orden.
+    # Por defecto busca la evidencia en una coleccion en memoria: sin chroma_db
+    # ni modelo de embeddings, asi las pruebas corren igual en cualquier PC.
+    def correr():
+        app = construir_grafo(InMemorySaver())
+        config = {"configurable": {"thread_id": "prueba"}}
+        inicial = estado_inicial() if caso is None else estado_inicial() | {"caso": caso}
+        resultado = app.invoke(inicial, config)
 
-    for decision in decisiones:
-        assert "__interrupt__" in resultado, "se esperaba una pausa para revision humana"
-        resultado = app.invoke(Command(resume=decision), config)
+        for decision in decisiones:
+            assert "__interrupt__" in resultado, "se esperaba una pausa para revision humana"
+            resultado = app.invoke(Command(resume=decision), config)
 
-    assert "__interrupt__" not in resultado, "el grafo no termino"
-    return resultado
+        assert "__interrupt__" not in resultado, "el grafo no termino"
+        return resultado
+
+    if con_chroma_real:
+        return correr()
+    return con_buscador_de_prueba(correr, usar_colecciones=True)
 
 
 # ---------- pruebas de las funciones que deciden el camino ----------
@@ -187,18 +195,27 @@ PEDAZOS = [
 ]
 
 
-def con_buscador_de_prueba(prueba):
-    """Corre `prueba` con buscar.py apuntando a una coleccion en memoria y la deja como estaba."""
+def con_buscador_de_prueba(prueba, usar_colecciones=False):
+    """Corre `prueba` con buscar.py apuntando a una coleccion en memoria y la deja como estaba.
+
+    Con usar_colecciones=True tambien redirige base.COLECCIONES a "prueba_md",
+    que es lo que necesitan las pruebas que corren el grafo completo.
+    """
     cliente_original, ef_original = buscar._cliente, buscar._ef
+    colecciones_originales = dict(base.COLECCIONES)
     buscar._cliente, buscar._ef = chromadb.EphemeralClient(), EmbeddingFalso()
     try:
         col = buscar._cliente.get_or_create_collection("prueba_md", embedding_function=buscar._ef)
         col.add(ids=[f"P{i}" for i in range(len(PEDAZOS))], documents=[t for t, _ in PEDAZOS],
                 metadatas=[{"doc_id": f"P{i}", "enfermedad": e, "titulo": t} for i, (t, e) in enumerate(PEDAZOS)])
-        prueba()
+        if usar_colecciones:
+            base.COLECCIONES.update({a: "prueba_md" for a in base.COLECCIONES})
+        return prueba()
     finally:
         buscar._cliente.delete_collection("prueba_md")
         buscar._cliente, buscar._ef = cliente_original, ef_original
+        base.COLECCIONES.clear()
+        base.COLECCIONES.update(colecciones_originales)
 
 
 def prueba_filtro_excluir_porcino():
@@ -219,6 +236,89 @@ def prueba_buscar_maximo_k():
     con_buscador_de_prueba(revisar)
 
 
+def prueba_como_texto_arma_la_cabecera():
+    pedazos = [
+        {"doc_id": "D1", "institucion": "SAG", "anio": "2024", "titulo": "Influenza aviar", "texto": "texto uno"},
+        {"doc_id": "D2", "texto": "texto dos"},
+    ]
+    partes = buscar.como_texto(pedazos).split("\n\n---\n\n")
+    assert len(partes) == 2
+    assert partes[0] == "[D1] SAG 2024 — Influenza aviar\ntexto uno"
+    assert partes[1].startswith("[D2]") and "texto dos" in partes[1]
+    assert buscar.como_texto([]) == ""
+
+
+# ---------- pruebas de los modulos de vet_agent/rag/ ----------
+
+def prueba_chunking_no_deja_pedazos_vacios_ni_pasados():
+    assert chunking.cortar("") == []
+    assert chunking.cortar("   \n\n  ") == []
+    palabras = [f"palabra{i}" for i in range(2000)]
+    texto = "\n\n".join(" ".join(palabras[i:i + 40]) for i in range(0, len(palabras), 40))
+    pedazos = chunking.cortar(texto)
+    assert len(pedazos) > 1
+    assert all(p.strip() for p in pedazos)
+    assert all(len(p) <= chunking.MAX_CHARS + chunking.SOLAPE + 2 for p in pedazos)
+
+
+def prueba_chunking_no_corta_palabras():
+    palabras = [f"w{i:04d}" for i in range(500)]
+    pedazos = chunking.cortar(" ".join(palabras), max_chars=200, solape=40)
+    vocabulario = set(palabras)
+    for pedazo in pedazos:
+        assert set(pedazo.split()) <= vocabulario, pedazo
+    # el solape repite texto, pero no se pierde ninguna palabra
+    assert vocabulario <= set(" ".join(pedazos).split())
+
+
+def prueba_chunking_parte_palabra_muy_larga():
+    palabra = "x" * 250
+    pedazos = chunking.cortar(palabra, max_chars=100, solape=20)
+    assert all(len(p) <= 100 for p in pedazos)
+    assert "".join(pedazos) == palabra
+
+
+def prueba_chunking_md_repite_el_titulo_en_las_continuaciones():
+    seccion = "# Titulo\n\n" + " ".join(f"palabra{i}" for i in range(80))
+    pedazos = chunking.cortar_md("# Chico\n\nhola\n\n" + seccion, max_chars=150, solape=30)
+    assert len(pedazos) > 1
+    assert pedazos[0].startswith("# Chico")
+    assert any(p.startswith("# Titulo") for p in pedazos[1:]), pedazos
+    assert all(len(p) <= 200 for p in pedazos)
+
+
+def prueba_cabecera_ida_y_vuelta():
+    meta = {"id": "D23", "titulo": 'Comparación: "aves" y cerdos', "anio": "2025"}
+    texto = cabecera.escribir(meta, "cuerpo\ncon dos lineas")
+    assert cabecera.separar(texto) == (meta, "cuerpo\ncon dos lineas\n")
+    assert cabecera.separar("sin cabecera") == ({}, "sin cabecera")
+
+
+def prueba_limpiar_texto_quita_ruido_y_conserva_titulos():
+    cuerpo = "\n".join([
+        "# Seccion importante",
+        "Texto cientifico que se mantiene.",
+        "1",
+        "Downloaded from https://ejemplo.cl",
+        "Aceptar todas las cookies",
+        "| columna | dato |",
+        "",
+        "# Resultados",
+        "Resultado principal.",
+        "",
+        "References",
+        "Autor, A. 2020. Un articulo.",
+    ])
+    limpio = limpiar_texto.limpiar(cuerpo)
+    assert "# Seccion importante" in limpio
+    assert "# Resultados" in limpio
+    assert "Resultado principal." in limpio
+    assert "| columna | dato |" in limpio
+    assert "References" not in limpio and "Autor, A." not in limpio
+    assert "Downloaded from" not in limpio and "cookies" not in limpio
+    assert "\n1\n" not in limpio
+
+
 # ---------- pruebas de la evidencia que reciben los agentes ----------
 
 CASO_AVIAR = {"especie": "aves de corral", "signos_clinicos": ["mortalidad súbita"],
@@ -237,27 +337,21 @@ def prueba_recortar_fragmento():
 
 def prueba_contexto_rag_sin_coleccion():
     # sin chroma_db (o sin la coleccion) el agente sigue, con SIN_CONTEXTO y sin evidencia
-    cliente_original = buscar._cliente
-    buscar._cliente = chromadb.EphemeralClient()  # vacio: no existe climatico_md
+    cliente_original, ef_original = buscar._cliente, buscar._ef
+    buscar._cliente, buscar._ef = chromadb.EphemeralClient(), EmbeddingFalso()
     try:
         assert base.contexto_rag("climatico", CASO_AVIAR) == (base.SIN_CONTEXTO, [])
     finally:
-        buscar._cliente = cliente_original
+        buscar._cliente, buscar._ef = cliente_original, ef_original
 
 
 def prueba_evidencia_y_fuentes_reales():
     # los tres agentes buscan en la coleccion de prueba con un caso aviar
     def revisar():
-        colecciones_originales = dict(base.COLECCIONES)
-        base.COLECCIONES.update({a: "prueba_md" for a in base.COLECCIONES})
-        try:
-            app = construir_grafo(InMemorySaver())
-            config = {"configurable": {"thread_id": "evidencia"}}
-            estado = estado_inicial() | {"caso": CASO_AVIAR}
-            resultado = app.invoke(estado, config)
-        finally:
-            base.COLECCIONES.clear()
-            base.COLECCIONES.update(colecciones_originales)
+        app = construir_grafo(InMemorySaver())
+        config = {"configurable": {"thread_id": "evidencia"}}
+        estado = estado_inicial() | {"caso": CASO_AVIAR}
+        resultado = app.invoke(estado, config)
 
         no_porcinos = {f"P{i}" for i, (_, e) in enumerate(PEDAZOS) if e != "porcino"}
         for agente, salida in resultado["resultados"].items():
@@ -271,7 +365,37 @@ def prueba_evidencia_y_fuentes_reales():
         citados = [f["doc_id"] for f in resultado["evaluacion"]["informe"]["fuentes_utilizadas"]]
         todos = {e["doc_id"] for s in resultado["resultados"].values() for e in s["evidencia"]}
         assert sorted(citados) == sorted(todos)
-    con_buscador_de_prueba(revisar)
+    con_buscador_de_prueba(revisar, usar_colecciones=True)
+
+
+COLECCIONES_REALES = ("climatico_md", "diagnostico_md", "bioseguridad_md")
+
+
+def prueba_integracion_chroma_real():
+    """Unica prueba que usa el chroma_db y los embeddings de verdad.
+
+    Si no esta indexada alguna de las tres colecciones, avisa que se omitio
+    en vez de pasar en silencio (los resultados dependerian de cada PC).
+    """
+    faltantes = []
+    for nombre in COLECCIONES_REALES:
+        try:
+            col = buscar._cliente.get_collection(nombre, embedding_function=buscar._embedding())
+        except Exception as e:
+            faltantes.append(f"{nombre} ({e})")
+            continue
+        if col.count() == 0:
+            faltantes.append(f"{nombre} (vacia)")
+    if faltantes:
+        return "falta indexar " + ", ".join(faltantes) + " en chroma_db/"
+
+    resultado = ejecutar([APROBAR], con_chroma_real=True, caso=CASO_AVIAR)
+    for agente, salida in resultado["resultados"].items():
+        assert salida["evidencia"], f"{agente} no recuperó evidencia del chroma_db real"
+    # el informe cita documentos que existen en la base
+    citados = [f["doc_id"] for f in resultado["evaluacion"]["informe"]["fuentes_utilizadas"]]
+    assert citados, "el informe quedaría sin fuentes"
+    assert set(citados) == {e["doc_id"] for s in resultado["resultados"].values() for e in s["evidencia"]}
 
 
 # ---------- pruebas de la revision humana por terminal (main.py) ----------
@@ -297,14 +421,14 @@ APP_DEMO = pathlib.Path(__file__).resolve().parents[1] / "app_demo.py"
 def con_demo(prueba):
     """Corre `prueba(at)` con la demo cargada y Chroma vacio (los agentes siguen sin contexto RAG)."""
     from streamlit.testing.v1 import AppTest
-    cliente_original = buscar._cliente
-    buscar._cliente = chromadb.EphemeralClient()
+    cliente_original, ef_original = buscar._cliente, buscar._ef
+    buscar._cliente, buscar._ef = chromadb.EphemeralClient(), EmbeddingFalso()
     try:
         at = AppTest.from_file(str(APP_DEMO), default_timeout=120)
         at.run()
         prueba(at)
     finally:
-        buscar._cliente = cliente_original
+        buscar._cliente, buscar._ef = cliente_original, ef_original
 
 
 def apretar(at, etiqueta):
@@ -409,16 +533,33 @@ if __name__ == "__main__":
         prueba_debate_solo_llama_al_consultado,
         prueba_filtro_excluir_porcino,
         prueba_buscar_maximo_k,
+        prueba_como_texto_arma_la_cabecera,
+        prueba_chunking_no_deja_pedazos_vacios_ni_pasados,
+        prueba_chunking_no_corta_palabras,
+        prueba_chunking_parte_palabra_muy_larga,
+        prueba_chunking_md_repite_el_titulo_en_las_continuaciones,
+        prueba_cabecera_ida_y_vuelta,
+        prueba_limpiar_texto_quita_ruido_y_conserva_titulos,
         prueba_recortar_fragmento,
         prueba_contexto_rag_sin_coleccion,
         prueba_evidencia_y_fuentes_reales,
+        prueba_integracion_chroma_real,
         prueba_main_rechazo_pide_comentario,
         prueba_demo_rechazo_sin_comentario,
         prueba_demo_error_de_conexion,
         prueba_demo_error_de_contexto_al_reanudar,
     ]
+    pasaron = omitidas = 0
     for prueba in pruebas:
-        prueba()
-        print(f"OK  {prueba.__name__}")
+        motivo = prueba()
+        if isinstance(motivo, str):
+            omitidas += 1
+            print(f"OMITIDA {prueba.__name__}: {motivo}")
+        else:
+            pasaron += 1
+            print(f"OK  {prueba.__name__}")
 
-    print(f"\n{len(pruebas)} pruebas pasaron")
+    resumen = f"{pasaron} pruebas pasaron"
+    if omitidas:
+        resumen += f", {omitidas} omitida(s)"
+    print("\n" + resumen)
