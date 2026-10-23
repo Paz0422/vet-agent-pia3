@@ -1,4 +1,4 @@
-# Tarea 4: buscar(coleccion, pregunta, k=5) y buscar_crudo(coleccion, pregunta, k=5)
+# Tarea 4: buscar(coleccion, pregunta, k=5), buscar_crudo(coleccion, pregunta, k=5) y como_texto(pedazos)
 import pathlib
 import chromadb
 from chromadb.utils import embedding_functions
@@ -35,8 +35,13 @@ def buscar_crudo(coleccion: str, pregunta: str, k: int = 5, excluir_porcino: boo
 
 def buscar(coleccion: str, pregunta: str, k: int = 5, excluir_porcino: bool = True) -> str:
     """Devuelve los k pedazos como un solo texto listo para el prompt del agente."""
+    return como_texto(buscar_crudo(coleccion, pregunta, k, excluir_porcino))
+
+
+def como_texto(pedazos: list[dict]) -> str:
+    """Junta pedazos ya buscados (los de buscar_crudo) en un solo texto para el prompt."""
     partes = []
-    for p in buscar_crudo(coleccion, pregunta, k, excluir_porcino):
+    for p in pedazos:
         cabecera = f"[{p['doc_id']}] {p.get('institucion', '')} {p.get('anio', '')} — {p.get('titulo', '')}"
         partes.append(cabecera + "\n" + p["texto"])
     return "\n\n---\n\n".join(partes)

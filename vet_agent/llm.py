@@ -1,8 +1,8 @@
 import json
 import re
 
-from vet_agent.config import (USAR_SIMULACION, LLM_URL, LLM_MODELO,
-                              LLM_TEMPERATURA, LLM_REINTENTOS, LLM_TIMEOUT)
+from vet_agent.config import (USAR_SIMULACION, LLM_URL, LLM_MODELO, LLM_TEMPERATURA,
+                              LLM_REINTENTOS, LLM_TIMEOUT, LLM_MAX_TOKENS)
 
 _modelo = None  # se crea la primera vez que se usa
 
@@ -96,7 +96,8 @@ def _cliente():
     if _modelo is None:
         from langchain_openai import ChatOpenAI
         _modelo = ChatOpenAI(base_url=LLM_URL, api_key="lm-studio", model=LLM_MODELO,
-                             temperature=LLM_TEMPERATURA, timeout=LLM_TIMEOUT,max_retries=0)
+                             temperature=LLM_TEMPERATURA, timeout=LLM_TIMEOUT, max_retries=0,
+                             max_tokens=LLM_MAX_TOKENS)
     return _modelo
 
 

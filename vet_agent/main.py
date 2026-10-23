@@ -22,6 +22,19 @@ CASO_H5N1 = {
 }
 
 
+def pedir_decision(leer=input) -> dict:
+    # leer se puede cambiar en las pruebas para no esperar al teclado
+    respuesta = leer("\n¿Aprobar el informe? (s/n): ").strip().lower()
+    if respuesta == "s":
+        return {"aprobado": True, "comentarios": ""}
+    # sin comentario el moderador no sabe que corregir: se pide hasta que escriba algo
+    comentarios = leer("Comentarios para el moderador: ").strip()
+    while not comentarios:
+        print("Escribe un comentario para que el moderador sepa qué corregir.")
+        comentarios = leer("Comentarios para el moderador: ").strip()
+    return {"aprobado": False, "comentarios": comentarios}
+
+
 if __name__ == "__main__":
     # InMemorySaver guarda el estado en memoria mientras corre el programa
     app = construir_grafo(InMemorySaver())
@@ -52,12 +65,7 @@ if __name__ == "__main__":
             for p in pausa["preguntas_pendientes"]:
                 print(f"- {p['agente_destino']}: {p['pregunta']}")
 
-        respuesta = input("\n¿Aprobar el informe? (s/n): ").strip().lower()
-        if respuesta == "s":
-            decision = {"aprobado": True, "comentarios": ""}
-        else:
-            comentarios = input("Comentarios para el moderador: ")
-            decision = {"aprobado": False, "comentarios": comentarios}
+        decision = pedir_decision()
 
         # Command(resume=...) le entrega la decision al grafo y sigue desde la pausa
         resultado = app.invoke(Command(resume=decision), config)

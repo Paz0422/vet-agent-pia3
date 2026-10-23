@@ -9,3 +9,4 @@ corpus/md/**
 !corpus/md/reporte_validacion.xlsx
 !corpus/md/para_investigacion.xlsx
 corpus/D/*.pdf
+.coverage

@@ -1,6 +1,7 @@
 import json
 
 from vet_agent import llm
+from vet_agent.config import K_FRAGMENTOS, MAX_CARACTERES_FRAGMENTO
 from vet_agent.estado import Estado
 from vet_agent.rag import buscar
 
@@ -20,8 +21,6 @@ CAMPOS_CONSULTA = {
     "diagnostico": ["resultados_laboratorio", "mortalidad"],
     "bioseguridad": ["manejo_bioseguridad", "movimientos_animales", "sistema_productivo"],
 }
-
-K_FRAGMENTOS = 5
 
 
 def a_texto(datos) -> str:
@@ -59,6 +58,19 @@ def consulta_del_caso(agente: str, caso: dict) -> str:
     return ". ".join(_en_una_linea(caso[c]) for c in campos if caso.get(c))
 
 
+def recortar(texto: str, limite: int = MAX_CARACTERES_FRAGMENTO) -> str:
+    # corta en el ultimo espacio antes del limite para no dejar una palabra a medias
+    if len(texto) <= limite:
+        return texto
+    corte = texto.rfind(" ", 0, limite + 1)
+    return texto[:corte if corte > 0 else limite].rstrip() + " […]"
+
+
+def texto_para_prompt(fragmentos: list[dict]) -> str:
+    # menos texto al modelo = respuesta mas rapida; la evidencia guardada queda completa
+    return buscar.como_texto([f | {"texto": recortar(f["texto"])} for f in fragmentos])
+
+
 def contexto_rag(agente: str, caso: dict) -> tuple[str, list[dict]]:
     """Busca en la coleccion del agente. Devuelve (texto para el prompt, fragmentos crudos).
 
@@ -70,11 +82,10 @@ def contexto_rag(agente: str, caso: dict) -> tuple[str, list[dict]]:
     excluir_porcino = "porcino" not in str(caso.get("especie", "")).lower()
     try:
         fragmentos = buscar.buscar_crudo(coleccion, consulta, K_FRAGMENTOS, excluir_porcino)
-        texto = buscar.buscar(coleccion, consulta, K_FRAGMENTOS, excluir_porcino)
     except Exception as e:
         print(f"[{agente}] sin contexto RAG: no pude buscar en '{coleccion}' ({e})")
         return SIN_CONTEXTO, []
-    return (texto or SIN_CONTEXTO), fragmentos
+    return (texto_para_prompt(fragmentos) or SIN_CONTEXTO), fragmentos
 
 
 def _rellenar_fuentes(datos, doc_ids: list[str]):
