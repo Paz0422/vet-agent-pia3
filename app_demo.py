@@ -7,11 +7,12 @@ Uso (raiz del repo):
 import time
 import uuid
 
+import openai
 import streamlit as st
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from vet_agent.config import USAR_SIMULACION, LLM_MODELO
+from vet_agent.config import USAR_SIMULACION, LLM_MODELO, LLM_URL, LLM_TIMEOUT
 from vet_agent.grafo import construir_grafo, ESPECIALISTAS
 from vet_agent.main import CASO_H5N1
 
@@ -36,23 +37,55 @@ def config():
     return {"configurable": {"thread_id": st.session_state.thread_id}}
 
 
-def correr(entrada, titulo: str) -> float:
+# errores del LLM que se muestran con un mensaje claro en vez del traceback
+# (ValueError = el modelo no entrego JSON valido ni con reintentos, ver llm.py)
+ERRORES_LLM = (openai.APIError, ValueError)
+
+
+def explicar_error(e: Exception) -> str:
+    if isinstance(e, openai.APITimeoutError):
+        return (f"El modelo no respondió en {LLM_TIMEOUT} s. Sube LLM_TIMEOUT en el .env "
+                "o corre el análisis en un PC con GPU.")
+    if isinstance(e, openai.APIConnectionError):
+        return (f"No se pudo conectar con LM Studio en {LLM_URL}. Revisa que el servidor de LM Studio "
+                "esté encendido (pestaña Developer → Start Server, o `lms server start`) y que el modelo esté cargado.")
+    if "context" in str(e).lower():
+        return ("El texto enviado no cabe en el contexto del modelo. En LM Studio, vuelve a cargar el modelo "
+                "con un Context Length mayor (16384 o más) y deja Max Concurrent Predictions en 1 "
+                "(con más predicciones a la vez, el contexto se puede repartir entre ellas).")
+    if isinstance(e, ValueError):
+        return ("El modelo no entregó un JSON válido ni con reintentos. Si la respuesta se cortó, "
+                "sube LLM_MAX_TOKENS en el .env.")
+    return "LM Studio devolvió un error."
+
+
+def correr(entrada, titulo: str) -> float | None:
     """Corre el grafo mostrando que nodo va terminando, guarda el resultado en la sesion
-    y devuelve cuantos segundos tardo.
+    y devuelve cuantos segundos tardo (None si fallo el LLM).
 
     El resultado queda igual que el de grafo().invoke(): el estado completo y, si el grafo
     se detuvo a esperar la revision humana, la pausa en "__interrupt__".
+    Si el LLM falla, el resultado anterior no se toca y el error queda en st.session_state.error:
+    el grafo queda detenido en el paso que fallo y se puede reintentar con entrada None.
     """
-    inicio = time.perf_counter()
+    inicio, lineas = time.perf_counter(), []
     with st.status(titulo, expanded=True) as estado:
-        for paso in grafo().stream(entrada, config(), stream_mode="updates"):
-            for nodo, cambios in paso.items():
-                if nodo == "__interrupt__":
-                    continue
-                # en las rondas de debate, los agentes no consultados no llaman al LLM ni devuelven cambios
-                detalle = "" if cambios else " (no consultado en esta ronda)"
-                estado.write(f"✅ {NOMBRE_NODO.get(nodo, nodo)} terminó en "
-                             f"{time.perf_counter() - inicio:.0f} s{detalle}")
+        try:
+            for paso in grafo().stream(entrada, config(), stream_mode="updates"):
+                for nodo, cambios in paso.items():
+                    if nodo == "__interrupt__":
+                        continue
+                    # en las rondas de debate, los agentes no consultados no llaman al LLM ni devuelven cambios
+                    detalle = "" if cambios else " (no consultado en esta ronda)"
+                    lineas.append(f"✅ {NOMBRE_NODO.get(nodo, nodo)} terminó en "
+                                  f"{time.perf_counter() - inicio:.0f} s{detalle}")
+                    estado.write(lineas[-1])
+        except ERRORES_LLM as e:
+            segundos = time.perf_counter() - inicio
+            estado.update(label=f"{titulo} Falló a los {segundos:.0f} s", state="error", expanded=False)
+            st.session_state.error = {"mensaje": explicar_error(e), "detalle": f"{type(e).__name__}: {e}"}
+            st.session_state.avance = lineas
+            return None
         segundos = time.perf_counter() - inicio
         estado.update(label=f"{titulo} Listo en {segundos:.0f} s", state="complete", expanded=False)
 
@@ -61,6 +94,8 @@ def correr(entrada, titulo: str) -> float:
     if foto.interrupts:
         resultado["__interrupt__"] = foto.interrupts
     st.session_state.resultado = resultado
+    st.session_state.error = None
+    st.session_state.avance = lineas
     return segundos
 
 
@@ -130,10 +165,13 @@ def lista(items, formato):
 
 def mostrar_informe(resultado: dict, pausa: dict | None):
     st.subheader("Borrador del informe")
-    tiempos = [f"el análisis tardó {st.session_state.segundos_analisis:.0f} s"]
+    tiempos = []
+    if st.session_state.get("segundos_analisis") is not None:
+        tiempos.append(f"el análisis tardó {st.session_state.segundos_analisis:.0f} s")
     if st.session_state.get("segundos_revision") is not None:
         tiempos.append(f"la última revisión del moderador, {st.session_state.segundos_revision:.0f} s")
-    st.caption("⏱️ " + "; ".join(tiempos).capitalize())
+    if tiempos:
+        st.caption("⏱️ " + "; ".join(tiempos).capitalize())
     informe = (pausa or {}).get("informe") or resultado.get("evaluacion", {}).get("informe", {})
 
     if seccion("Resumen", informe.get("resumen_ejecutivo")):
@@ -187,47 +225,106 @@ def mostrar_informe(resultado: dict, pausa: dict | None):
         st.info("El informe no cita fuentes.")
 
 
-def revision(pausa: dict):
+# Los botones solo dejan anotado el pedido (on_click corre antes de redibujar la pagina):
+# asi, mientras el grafo corre, todos los botones ya se dibujan desactivados y no se
+# pueden lanzar dos peticiones al LLM a la vez. El pedido se ejecuta al final del script.
+
+def pedir_analisis():
+    st.session_state.thread_id = str(uuid.uuid4())
+    st.session_state.resultado = None
+    st.session_state.error = None
+    st.session_state.pedido = "analizar"
+
+
+def pedir_aprobacion():
+    st.session_state.pedido = {"aprobado": True, "comentarios": ""}
+
+
+def pedir_rechazo():
+    comentarios = st.session_state.get("comentarios", "").strip()
+    if not comentarios:
+        # sin comentario el moderador no sabe que corregir: no se reanuda el grafo
+        st.session_state.falta_comentario = True
+        return
+    st.session_state.comentarios = ""  # el informe nuevo parte con el campo vacio
+    st.session_state.pedido = {"aprobado": False, "comentarios": comentarios}
+
+
+def pedir_reintento():
+    st.session_state.pedido = "reintentar"
+
+
+def revision(corriendo: bool):
     st.subheader("Revisión humana")
-    comentarios = st.text_area("Comentarios para el moderador (si rechazas)")
+    st.text_area("Comentarios para el moderador (obligatorio si rechazas)", key="comentarios", disabled=corriendo)
     aprobar, rechazar = st.columns(2)
-    decision = None
-    if aprobar.button("Aprobar", type="primary", width="stretch"):
-        decision = {"aprobado": True, "comentarios": ""}
-    if rechazar.button("Rechazar", width="stretch"):
-        decision = {"aprobado": False, "comentarios": comentarios}
-    if decision:
+    aprobar.button("Aprobar", type="primary", width="stretch", disabled=corriendo, on_click=pedir_aprobacion)
+    rechazar.button("Rechazar", width="stretch", disabled=corriendo, on_click=pedir_rechazo)
+    if st.session_state.pop("falta_comentario", False):
+        st.warning("Escribe un comentario para que el moderador sepa qué corregir.")
+
+
+def ejecutar(pedido, caso: dict):
+    if pedido == "analizar":
+        estado = {"caso": caso, "resultados": {}, "solicitudes": {}, "revisiones": 0, "decision_humana": {}}
+        segundos = correr(estado, "Buscando evidencia y corriendo los agentes "
+                                  "(la primera vez carga el modelo de embeddings)...")
+        st.session_state.segundos_analisis = segundos
+        st.session_state.segundos_revision = None
+    elif pedido == "reintentar":
+        # entrada None = seguir desde el ultimo paso guardado, el que fallo
+        analizando = st.session_state.get("resultado") is None
+        segundos = correr(None, "Reintentando desde el paso que falló...")
+        if segundos is not None:
+            clave = "segundos_analisis" if analizando else "segundos_revision"
+            st.session_state[clave] = segundos
+    else:
         # Command(resume=...) le entrega la decision al grafo y sigue desde la pausa
-        titulo = "Cerrando el caso..." if decision["aprobado"] else "El moderador revisa el informe con tus comentarios..."
-        segundos = correr(Command(resume=decision), titulo)
+        titulo = "Cerrando el caso..." if pedido["aprobado"] else "El moderador revisa el informe con tus comentarios..."
+        segundos = correr(Command(resume=pedido), titulo)
         # al aprobar solo se cierra el caso: el tiempo que importa es el de un rechazo
-        if not decision["aprobado"]:
+        if segundos is not None and not pedido["aprobado"]:
             st.session_state.segundos_revision = segundos
-        st.rerun()
 
 
 st.set_page_config(page_title="Demo vet-agent", page_icon="🐔", layout="wide")
 st.title("Análisis epidemiológico: influenza aviar H5N1")
 st.warning(AVISO, icon="⚠️")
 
+pedido = st.session_state.get("pedido")
+corriendo = pedido is not None
+
 with st.form("caso"):
     st.subheader("Caso")
     caso = formulario_caso()
-    analizar = st.form_submit_button("Analizar", type="primary")
-
-if analizar:
-    st.session_state.thread_id = str(uuid.uuid4())
-    estado = {"caso": caso, "resultados": {}, "solicitudes": {}, "revisiones": 0, "decision_humana": {}}
-    st.session_state.segundos_analisis = correr(
-        estado, "Buscando evidencia y corriendo los agentes (la primera vez carga el modelo de embeddings)...")
-    st.session_state.segundos_revision = None
+    st.form_submit_button("Analizar", type="primary", disabled=corriendo, on_click=pedir_analisis)
 
 resultado = st.session_state.get("resultado")
+error = st.session_state.get("error")
 if resultado:
     pausa = resultado["__interrupt__"][0].value if "__interrupt__" in resultado else None
     mostrar_evidencia(resultado.get("resultados", {}))
     mostrar_informe(resultado, pausa)
-    if pausa:
-        revision(pausa)
-    else:
+    if st.session_state.get("avance"):
+        with st.expander("Avance de la última corrida"):
+            st.markdown("\n\n".join(st.session_state.avance))
+    # con un error pendiente el grafo no esta en la pausa de revision: primero hay que reintentar
+    if pausa and not error:
+        revision(corriendo)
+    elif not pausa:
         st.success("Informe aprobado por el revisor.")
+
+if error:
+    st.error(error["mensaje"])
+    st.caption(f"Detalle técnico: {error['detalle'][:500]}")
+    if not resultado and st.session_state.get("avance"):
+        st.markdown("Alcanzaron a terminar:\n\n" + "\n\n".join(st.session_state.avance))
+    st.button("Reintentar", disabled=corriendo, on_click=pedir_reintento)
+
+# el trabajo pesado va al final, con toda la pagina ya dibujada (y los botones desactivados)
+if corriendo:
+    try:
+        ejecutar(pedido, caso)
+    finally:
+        st.session_state.pedido = None  # aunque algo falle, los botones no quedan bloqueados
+    st.rerun()

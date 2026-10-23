@@ -1,7 +1,10 @@
 import copy
 import json
+import pathlib
 
 import chromadb
+import httpx
+import openai
 from chromadb.api.types import EmbeddingFunction
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END
@@ -11,6 +14,7 @@ from vet_agent import llm
 from vet_agent.agentes import base, climatico, diagnostico, bioseguridad, moderador
 from vet_agent.config import MAX_RONDAS, K_FRAGMENTOS
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
+from vet_agent.main import pedir_decision
 from vet_agent.rag import buscar
 
 # las pruebas siempre usan respuestas de ejemplo, aunque el .env diga otra cosa
@@ -270,6 +274,127 @@ def prueba_evidencia_y_fuentes_reales():
     con_buscador_de_prueba(revisar)
 
 
+# ---------- pruebas de la revision humana por terminal (main.py) ----------
+
+def respuestas(*textos):
+    # reemplaza a input(): devuelve las respuestas en orden
+    pendientes = list(textos)
+    return lambda _pregunta: pendientes.pop(0)
+
+
+def prueba_main_rechazo_pide_comentario():
+    assert pedir_decision(respuestas("s")) == APROBAR
+    # vacio y solo espacios no sirven: vuelve a pedir hasta que haya texto
+    decision = pedir_decision(respuestas("n", "", "   ", " falta humedad "))
+    assert decision == {"aprobado": False, "comentarios": "falta humedad"}
+
+
+# ---------- pruebas de la demo con el modo de pruebas de Streamlit (sin navegador) ----------
+
+APP_DEMO = pathlib.Path(__file__).resolve().parents[1] / "app_demo.py"
+
+
+def con_demo(prueba):
+    """Corre `prueba(at)` con la demo cargada y Chroma vacio (los agentes siguen sin contexto RAG)."""
+    from streamlit.testing.v1 import AppTest
+    cliente_original = buscar._cliente
+    buscar._cliente = chromadb.EphemeralClient()
+    try:
+        at = AppTest.from_file(str(APP_DEMO), default_timeout=120)
+        at.run()
+        prueba(at)
+    finally:
+        buscar._cliente = cliente_original
+
+
+def apretar(at, etiqueta):
+    boton = next(b for b in at.button if b.label == etiqueta)
+    boton.click().run()
+    assert not at.exception, at.exception
+
+
+def hay_boton(at, etiqueta):
+    return any(b.label == etiqueta for b in at.button)
+
+
+def avisos(at):
+    return [w.value for w in at.warning]
+
+
+def errores(at):
+    return [e.value for e in at.error]
+
+
+def con_llm_que_falla(modulo, error, accion):
+    # el agente usa el consultar_llm que importo; se reemplaza solo mientras corre accion()
+    original = modulo.consultar_llm
+
+    def falla(*_):
+        raise error
+
+    modulo.consultar_llm = falla
+    try:
+        accion()
+    finally:
+        modulo.consultar_llm = original
+
+
+def prueba_demo_rechazo_sin_comentario():
+    def revisar(at):
+        apretar(at, "Analizar")
+        pausa = at.session_state["resultado"]["__interrupt__"]
+        assert hay_boton(at, "Aprobar") and hay_boton(at, "Rechazar")
+        # vacio y solo espacios: aviso, y el grafo no se reanuda
+        for texto in ("", "   "):
+            at.text_area(key="comentarios").input(texto)
+            apretar(at, "Rechazar")
+            assert "Escribe un comentario para que el moderador sepa qué corregir." in avisos(at)
+            assert at.session_state["resultado"]["__interrupt__"] == pausa, "no debía reanudar"
+        # con comentario: el moderador lo recibe y vuelve a pedir revision
+        at.text_area(key="comentarios").input("falta informacion de humedad")
+        apretar(at, "Rechazar")
+        resultado = at.session_state["resultado"]
+        assert resultado["decision_humana"] == {"aprobado": False, "comentarios": "falta informacion de humedad"}
+        assert "__interrupt__" in resultado and resultado["revisiones"] == 2
+        # aprobar no necesita comentario
+        apretar(at, "Aprobar")
+        assert "__interrupt__" not in at.session_state["resultado"]
+        assert at.session_state["resultado"]["decision_humana"]["aprobado"] is True
+    con_demo(revisar)
+
+
+def prueba_demo_error_de_conexion():
+    pedido = httpx.Request("POST", "http://localhost:1234/v1/chat/completions")
+
+    def revisar(at):
+        con_llm_que_falla(climatico, openai.APIConnectionError(request=pedido), lambda: apretar(at, "Analizar"))
+        assert any("servidor de LM Studio" in e for e in errores(at)), errores(at)
+        assert not hay_boton(at, "Aprobar") and hay_boton(at, "Reintentar")
+        # con el LLM de vuelta, Reintentar sigue desde el agente que fallo
+        apretar(at, "Reintentar")
+        assert not errores(at) and "__interrupt__" in at.session_state["resultado"]
+        assert hay_boton(at, "Aprobar")
+    con_demo(revisar)
+
+
+def prueba_demo_error_de_contexto_al_reanudar():
+    respuesta = httpx.Response(400, request=httpx.Request("POST", "http://localhost:1234/v1/chat/completions"))
+    error = openai.BadRequestError("Context size has been exceeded.", response=respuesta, body=None)
+
+    def revisar(at):
+        apretar(at, "Analizar")
+        at.text_area(key="comentarios").input("falta humedad")
+        con_llm_que_falla(moderador, error, lambda: apretar(at, "Rechazar"))
+        assert any("Context Length" in e and "Max Concurrent Predictions" in e for e in errores(at)), errores(at)
+        # el grafo quedo en el moderador: aprobar ahora se perderia, solo se ofrece reintentar
+        assert not hay_boton(at, "Aprobar") and hay_boton(at, "Reintentar")
+        apretar(at, "Reintentar")
+        resultado = at.session_state["resultado"]
+        assert not errores(at) and "__interrupt__" in resultado
+        assert resultado["decision_humana"]["comentarios"] == "falta humedad"
+    con_demo(revisar)
+
+
 if __name__ == "__main__":
     pruebas = [
         prueba_moderador_informe_final,
@@ -287,6 +412,10 @@ if __name__ == "__main__":
         prueba_recortar_fragmento,
         prueba_contexto_rag_sin_coleccion,
         prueba_evidencia_y_fuentes_reales,
+        prueba_main_rechazo_pide_comentario,
+        prueba_demo_rechazo_sin_comentario,
+        prueba_demo_error_de_conexion,
+        prueba_demo_error_de_contexto_al_reanudar,
     ]
     for prueba in pruebas:
         prueba()
