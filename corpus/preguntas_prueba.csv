@@ -1,12 +1,12 @@
 pregunta,doc_esperado,nota,coleccion
 ¿Qué medidas contempla el plan de contingencia del SAG ante un brote de influenza aviar en Chile?,D3,"borrador, falta validar con Investigación; sale del título de D3",diagnostico_md
 ¿Qué pruebas recomienda la OMSA para diagnosticar la influenza aviar altamente patógena?,D8,"borrador, falta validar con Investigación; sale del título de D8",diagnostico_md
-¿Cómo diagnostica el SAG la influenza aviar con ELISA y RT-PCR en tiempo real?,D22,"borrador, falta validar con Investigación; sale del título de D22",diagnostico_md
+¿Qué documentos y antecedentes debe presentar un laboratorio al SAG para solicitar la autorización de diagnóstico de influenza aviar?,D22,"reescrita: el documento trata de los requisitos y la autorización de laboratorios (personal, infraestructura, dossier), no del procedimiento de diagnóstico",diagnostico_md
 ¿Cómo se toman muestras de aves para detectar influenza A y enfermedad de Newcastle?,D27,"borrador, falta validar con Investigación; sale del título de D27",diagnostico_md
-¿Qué ensayo de RT-PCR en tiempo real detecta influenza tipo A y los subtipos H5 y H7?,D33,"borrador, falta validar con Investigación; sale del título de D33",diagnostico_md
+¿Qué RT-PCR en tiempo real sirve para detectar el gen de la matriz de influenza A y los subtipos H5 y H7 de hemaglutinina en aves?,D33,"reescrita: antes era casi el título; ahora pregunta por el gen de la matriz y los subtipos H5 y H7, que es lo que detecta el ensayo",diagnostico_md
 ¿Se puede usar sangre en tiras de papel filtro en vez de suero para detectar anticuerpos de influenza aviar en aves silvestres?,D23,"borrador, falta validar con Investigación; sale del título de D23",diagnostico_md
 ¿Qué impacto tuvo el H5N1 altamente patógeno en las poblaciones de aves marinas?,D24,"borrador, falta validar con Investigación; sale del título de D24",diagnostico_md
-¿Qué kit ELISA de IDEXX detecta anticuerpos contra influenza aviar?,D20,"borrador, falta validar con Investigación; sale del título de D20 (D11 también nombra el kit)",diagnostico_md
+¿Para qué sirve la prueba IDEXX AI MultiS-Screen Ab y en qué especies de aves se puede usar?,D20,reescrita: ahora pregunta por la prueba y las especies de aves; se deja solo D20 porque su ficha de producto es la que describe la prueba,diagnostico_md
 ¿Qué kits comerciales aprueba el SAG para diagnosticar influenza aviar?,D11,"borrador, falta validar con Investigación; sale del título de D11",diagnostico_md
 "¿Cómo se recolectan, envían y almacenan las muestras para diagnóstico?",D10,"borrador, falta validar con Investigación; sale del título de D10",diagnostico_md
 ¿Cómo se valida una prueba de diagnóstico de enfermedades infecciosas en animales?,D7,"borrador, falta validar con Investigación; sale del título de D7",diagnostico_md
@@ -20,9 +20,9 @@ pregunta,doc_esperado,nota,coleccion
 ¿Cómo cambia el calentamiento climático el impacto de la influenza aviar altamente patógena?,CLI-098,"borrador, falta validar con Investigación",climatico_md
 ¿Cómo se usan muestreadores pasivos para vigilar virus de influenza aviar en humedales?,CLI-087,"borrador, falta validar con Investigación",climatico_md
 ¿Qué tan eficaz es la limpieza y desinfección de vehículos y jaulas de transporte frente a la influenza aviar?,BIO-009,"borrador, falta validar con Investigación",bioseguridad_md
-¿Qué fallas de bioseguridad se encontraron en granjas avícolas afectadas por influenza aviar altamente patógena?,BIO-041;BIO-028,"borrador, falta validar con Investigación",bioseguridad_md
-¿Qué medidas contempla el plan de contingencia del SAG para la influenza aviar?,F1;E7,"borrador, falta validar con Investigación",bioseguridad_md
-¿Cómo se compostan las aves muertas durante la respuesta a un brote de influenza aviar altamente patógena?,C10,"borrador, falta validar con Investigación",bioseguridad_md
+¿Qué deficiencias de bioseguridad se encontraron en granjas avícolas de Corea afectadas por influenza aviar altamente patógena?,BIO-041,"reescrita: se acota a granjas de Corea; se deja solo BIO-041, que trata de ese país",bioseguridad_md
+"¿Qué acciones debe ejecutar el SAG en un establecimiento con influenza aviar confirmada: cuarentena, sacrificio sanitario y desinfección?",F1;E7,reescrita: la pregunta era muy general; ahora pide las acciones en el establecimiento infectado que detalla el plan de contingencia,bioseguridad_md
+¿Cómo se debe compostar la mortalidad de aves en el predio durante la respuesta a influenza aviar altamente patógena?,C10,reescrita: redacción más natural (compostar la mortalidad en el predio); mismo documento,bioseguridad_md
 ¿Cómo se despuebla a gallinas ponedoras enjauladas usando espuma con dióxido de carbono y nitrógeno?,C11,"borrador, falta validar con Investigación",bioseguridad_md
 ¿Qué medidas de bioseguridad deben seguir las personas en una emergencia zoosanitaria por influenza aviar?,E5,"borrador, falta validar con Investigación",bioseguridad_md
 ¿Qué niveles de mortalidad permiten sospechar influenza aviar en gallinas ponedoras?,C17;C18,"borrador, falta validar con Investigación",bioseguridad_md
