@@ -6,19 +6,27 @@ from langgraph.types import Command
 from vet_agent.grafo import construir_grafo
 
 # caso de ejemplo (ficticio) de influenza aviar H5N1; tambien lo usa app_demo.py
+# usa los mismos nombres de campo que la Parte A de los escenarios de Investigacion
 CASO_H5N1 = {
     "especie": "aves de corral (gallinas ponedoras)",
-    "sistema_productivo": "plantel de ponedoras comerciales, 40.000 aves",
-    "ubicacion": "Región de Valparaíso, cerca de un humedal costero",
-    "periodo": "mayo 2026",
+    "sistema_productivo": "plantel de ponedoras comerciales (galpones abiertos sin malla antiaves)",
+    "region": "Valparaíso",
+    "comuna": "Concón",
+    "fecha_evento": "2026-05-01",
+    "n_animales": 40000,
     "signos_clinicos": ["mortalidad súbita", "cianosis de cresta y barbilla",
                         "caída brusca de la postura", "signos nerviosos"],
-    "mortalidad": "12% en 48 horas en un galpón",
-    "resultados_laboratorio": ["RT-PCR positivo a influenza A (gen M)", "subtipificación H5N1 por RT-PCR"],
-    "clima": {"temperatura_promedio": "10°C", "humedad_relativa": "85%", "precipitaciones": "moderadas"},
-    "historial_brotes": "detecciones de H5N1 en aves silvestres de la costa en temporadas anteriores",
-    "movimientos_animales": "ingreso de pollitas de recría hace 2 semanas; aves migratorias en el humedal a 2 km",
-    "manejo_bioseguridad": "galpones abiertos sin malla antiaves, agua de bebida desde un tranque sin tratar",
+    "mortalidad_pct": 12.0,
+    "morbilidad_pct": 30.0,
+    "resultados_laboratorio": [
+        {"prueba": "RT-PCR", "resultado": "positivo a influenza A (gen M)", "fecha": "2026-05-03"},
+        {"prueba": "Subtipificación", "resultado": "H5N1", "fecha": "2026-05-05"},
+    ],
+    "clima": {"temperatura_media_c": 10.0, "humedad_relativa_pct": 85.0, "precipitacion_mm": 15.0},
+    "aves_silvestres_cercanas": "aves migratorias en el humedal a 2 km",
+    "historial_brotes_zona": "detecciones de H5N1 en aves silvestres de la costa en temporadas anteriores",
+    "movimientos_animales": "ingreso de pollitas de recría hace 2 semanas",
+    "indicadores_productivos": "caída brusca de la postura",
 }
 
 

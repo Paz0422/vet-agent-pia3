@@ -519,6 +519,85 @@ def prueba_demo_error_de_contexto_al_reanudar():
     con_demo(revisar)
 
 
+# ---------- prueba de la carga de escenarios (T2) ----------
+
+def prueba_cargar_escenarios_ejemplo():
+    # reproduce la fila de ejemplo (IAAP-00) de la plantilla de Investigación
+    # y revisa que se convierta al JSON con la Parte A y la Parte B separadas
+    import openpyxl
+    from vet_agent.datos.cargar_escenarios import escenarios_de_hoja
+
+    cabecera = [
+        "id_escenario", "titulo", "version", "autor", "tipo",
+        "parte_a_entrada.especie", "parte_a_entrada.sistema_productivo",
+        "parte_a_entrada.region", "parte_a_entrada.comuna", "parte_a_entrada.fecha_evento",
+        "parte_a_entrada.n_animales", "parte_a_entrada.signos_clinicos",
+        "parte_a_entrada.mortalidad_pct", "parte_a_entrada.morbilidad_pct",
+        "parte_a_entrada.resultados_laboratorio_1.prueba",
+        "parte_a_entrada.resultados_laboratorio_1.resultado",
+        "parte_a_entrada.resultados_laboratorio_1.fecha",
+        "parte_a_entrada.resultados_laboratorio_2.prueba",
+        "parte_a_entrada.resultados_laboratorio_2.resultado",
+        "parte_a_entrada.resultados_laboratorio_2.fecha",
+        "parte_a_entrada.clima.temperatura_media_c",
+        "parte_a_entrada.clima.humedad_relativa_pct",
+        "parte_a_entrada.clima.precipitacion_mm",
+        "parte_a_entrada.aves_silvestres_cercanas",
+        "parte_a_entrada.historial_brotes_zona",
+        "parte_a_entrada.movimientos_animales",
+        "parte_a_entrada.indicadores_productivos",
+        "parte_b_referencia.nivel_riesgo",
+        "parte_b_referencia.documentos_esperados",
+        "tipo_caso",
+    ]
+    fila = [
+        "EJEMPLO IAAP-00", "Brote sospechoso IAAP en plantel de ponedoras", "borrador_1", "Nombre del autor", "simulado",
+        "aves", "ponedoras comerciales",
+        "Valparaíso", "(comuna)", "2026-10-20",
+        50000, "mortalidad súbita; edema facial",
+        2.5, 8,
+        "PCR", "positivo", "2026-10-22",
+        None, None, None,
+        14.2, 78, 3.2,
+        "humedal a 3 km con aves migratorias", None, None, None,
+        "alto", "C21; C45",
+        "concordante",
+    ]
+
+    libro = openpyxl.Workbook()
+    hoja = libro.active
+    hoja.title = "Escenarios"
+    hoja.append(cabecera)
+    hoja.append(fila)
+
+    escenarios = escenarios_de_hoja(hoja)
+    ej = next(e for e in escenarios if e["id_escenario"] == "IAAP-00")
+
+    # id normalizado y metadatos
+    assert ej["id_escenario"] == "IAAP-00"
+    assert ej["titulo"] == "Brote sospechoso IAAP en plantel de ponedoras"
+
+    # Parte A: anidación, números y listas
+    a = ej["parte_a_entrada"]
+    assert a["especie"] == "aves"
+    assert a["n_animales"] == 50000
+    assert a["mortalidad_pct"] == 2.5
+    assert a["signos_clinicos"] == ["mortalidad súbita", "edema facial"]
+    assert a["clima"]["temperatura_media_c"] == 14.2
+    assert a["resultados_laboratorio"] == [
+        {"prueba": "PCR", "resultado": "positivo", "fecha": "2026-10-22"}
+    ]
+
+    # Parte B: listas separadas por ";"
+    b = ej["parte_b_referencia"]
+    assert b["nivel_riesgo"] == "alto"
+    assert b["documentos_esperados"] == ["C21", "C45"]
+
+    # celdas vacías -> None y la columna tipo_caso se ignora
+    assert a["movimientos_animales"] is None
+    assert "tipo_caso" not in ej
+
+
 if __name__ == "__main__":
     pruebas = [
         prueba_moderador_informe_final,
@@ -544,6 +623,7 @@ if __name__ == "__main__":
         prueba_contexto_rag_sin_coleccion,
         prueba_evidencia_y_fuentes_reales,
         prueba_integracion_chroma_real,
+        prueba_cargar_escenarios_ejemplo,
         prueba_main_rechazo_pide_comentario,
         prueba_demo_rechazo_sin_comentario,
         prueba_demo_error_de_conexion,

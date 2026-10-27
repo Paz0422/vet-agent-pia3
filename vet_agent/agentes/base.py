@@ -17,9 +17,9 @@ COLECCIONES = {
 
 # que partes del caso van en la consulta de cada agente (ademas de especie y signos)
 CAMPOS_CONSULTA = {
-    "climatico": ["clima", "ubicacion", "periodo"],
-    "diagnostico": ["resultados_laboratorio", "mortalidad"],
-    "bioseguridad": ["manejo_bioseguridad", "movimientos_animales", "sistema_productivo"],
+    "climatico": ["clima", "region", "comuna", "fecha_evento"],
+    "diagnostico": ["resultados_laboratorio", "mortalidad_pct"],
+    "bioseguridad": ["sistema_productivo", "movimientos_animales", "aves_silvestres_cercanas"],
 }
 
 

@@ -1,0 +1,50 @@
+{
+  "id_escenario": "IAAP-00",
+  "titulo": "Brote sospechoso IAAP en plantel de ponedoras",
+  "version": "borrador_1",
+  "autor": "Nombre del autor",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "aves",
+    "sistema_productivo": "ponedoras comerciales",
+    "region": "Valparaíso",
+    "comuna": "(comuna)",
+    "fecha_evento": "2026-10-20",
+    "n_animales": 50000,
+    "signos_clinicos": [
+      "mortalidad súbita",
+      "edema facial"
+    ],
+    "mortalidad_pct": 2.5,
+    "morbilidad_pct": 8.0,
+    "clima": {
+      "temperatura_media_c": 14.2,
+      "humedad_relativa_pct": 78.0,
+      "precipitacion_mm": 3.2
+    },
+    "aves_silvestres_cercanas": "humedal a 3 km con aves migratorias",
+    "historial_brotes_zona": null,
+    "movimientos_animales": null,
+    "indicadores_productivos": null,
+    "resultados_laboratorio": [
+      {
+        "prueba": "PCR",
+        "resultado": "positivo",
+        "fecha": "2026-10-22"
+      }
+    ]
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "alto",
+    "factores_riesgo": null,
+    "hipotesis_alternativas": null,
+    "informacion_faltante": null,
+    "medidas_inmediatas": null,
+    "protocolos_aplicables": null,
+    "documentos_esperados": [
+      "C21",
+      "C45"
+    ],
+    "acciones_que_no_debe_recomendar": null
+  }
+}
