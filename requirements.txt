@@ -12,3 +12,4 @@ defusedxml
 tqdm
 streamlit
 langchain-openai
+requests

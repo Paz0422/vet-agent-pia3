@@ -13,6 +13,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from vet_agent.config import USAR_SIMULACION, LLM_MODELO, LLM_URL, LLM_TIMEOUT
+from vet_agent.datos import clima
 from vet_agent.grafo import construir_grafo, ESPECIALISTAS
 from vet_agent.main import CASO_H5N1
 
@@ -113,7 +114,15 @@ def formulario_caso() -> dict:
         elif isinstance(valor, dict):
             st.markdown(f"**{etiqueta(campo)}**")
             columnas = st.columns(len(valor))
-            caso[campo] = {k: col.text_input(etiqueta(k), v) for col, (k, v) in zip(columnas, valor.items())}
+            caso[campo] = {}
+            for col, (k, v) in zip(columnas, valor.items()):
+                # con la clave en session_state, el boton "Traer clima" puede pre-llenar
+                # estos campos antes de que se vuelvan a dibujar (ver pedir_clima)
+                clave = f"{campo}_{k}"
+                if clave in st.session_state:
+                    caso[campo][k] = col.text_input(etiqueta(k), key=clave)
+                else:
+                    caso[campo][k] = col.text_input(etiqueta(k), v, key=clave)
         else:
             caso[campo] = st.text_input(etiqueta(campo), valor)
     return caso
@@ -254,6 +263,16 @@ def pedir_reintento():
     st.session_state.pedido = "reintentar"
 
 
+def pedir_clima():
+    resultado = clima.traer_clima(st.session_state.get("lugar_clima", ""), st.session_state.get("fecha_clima", ""))
+    st.session_state.clima_error = resultado is None
+    if resultado:
+        # mismas claves que usa formulario_caso() para los campos del dict "clima"
+        st.session_state["clima_temperatura_promedio"] = f"{resultado['temperatura_media_c']}°C"
+        st.session_state["clima_humedad_relativa"] = f"{resultado['humedad_relativa_pct']}%"
+        st.session_state["clima_precipitaciones"] = f"{resultado['precipitacion_mm']} mm"
+
+
 def revision(corriendo: bool):
     st.subheader("Revisión humana")
     st.text_area("Comentarios para el moderador (obligatorio si rechazas)", key="comentarios", disabled=corriendo)
@@ -293,6 +312,14 @@ st.warning(AVISO, icon="⚠️")
 
 pedido = st.session_state.get("pedido")
 corriendo = pedido is not None
+
+lugar_col, fecha_col, boton_col = st.columns([2, 2, 1])
+lugar_col.text_input("Lugar (para traer el clima)", key="lugar_clima", placeholder="Valparaíso")
+fecha_col.text_input("Fecha (AAAA-MM-DD)", key="fecha_clima", placeholder="2026-10-20")
+boton_col.write("")  # empareja el boton con la altura de los campos de al lado
+boton_col.button("Traer clima", on_click=pedir_clima, disabled=corriendo)
+if st.session_state.get("clima_error"):
+    st.warning("No se pudo obtener el clima de Open-Meteo: revisa el lugar, la fecha o la conexión a internet.")
 
 with st.form("caso"):
     st.subheader("Caso")

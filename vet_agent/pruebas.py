@@ -13,6 +13,7 @@ from langgraph.types import Command
 from vet_agent import llm
 from vet_agent.agentes import base, climatico, diagnostico, bioseguridad, moderador
 from vet_agent.config import MAX_RONDAS, K_FRAGMENTOS
+from vet_agent.datos import clima
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
 from vet_agent.main import pedir_decision
 from vet_agent.rag import buscar, cabecera, chunking, limpiar_texto
@@ -519,6 +520,59 @@ def prueba_demo_error_de_contexto_al_reanudar():
     con_demo(revisar)
 
 
+# ---------- pruebas de vet_agent/datos/clima.py (Open-Meteo) ----------
+
+def con_clima_falso(geocodificacion, archivo, prueba):
+    # clima._get hace las dos llamadas (geocodificacion y archivo historico) en orden;
+    # se reemplaza por una funcion falsa para no depender de internet
+    respuestas = iter([geocodificacion, archivo])
+    original = clima._get
+    clima._get = lambda url, params: next(respuestas)
+    try:
+        return prueba()
+    finally:
+        clima._get = original
+
+
+def prueba_traer_clima():
+    geocodificacion = {"results": [{"latitude": -33.05, "longitude": -71.62}]}
+    archivo = {"daily": {"time": ["2026-10-20"], "temperature_2m_mean": [15.2],
+                          "relative_humidity_2m_mean": [78.0], "precipitation_sum": [0.4]}}
+    resultado = con_clima_falso(geocodificacion, archivo,
+                                 lambda: clima.traer_clima("Valparaíso", "2026-10-20"))
+    assert resultado == {"temperatura_media_c": 15.2, "humedad_relativa_pct": 78.0, "precipitacion_mm": 0.4}
+
+
+def prueba_traer_clima_lugar_no_encontrado():
+    resultado = con_clima_falso({"results": []}, {}, lambda: clima.traer_clima("Lugar Inexistente", "2026-10-20"))
+    assert resultado is None
+
+
+def prueba_demo_traer_clima():
+    geocodificacion = {"results": [{"latitude": -33.05, "longitude": -71.62}]}
+    archivo = {"daily": {"time": ["2026-10-20"], "temperature_2m_mean": [15.2],
+                          "relative_humidity_2m_mean": [78.0], "precipitation_sum": [0.4]}}
+
+    def revisar(at):
+        at.text_input(key="lugar_clima").input("Valparaíso")
+        at.text_input(key="fecha_clima").input("2026-10-20")
+        con_clima_falso(geocodificacion, archivo, lambda: apretar(at, "Traer clima"))
+        assert at.text_input(key="clima_temperatura_promedio").value == "15.2°C"
+        assert at.text_input(key="clima_humedad_relativa").value == "78.0%"
+        assert at.text_input(key="clima_precipitaciones").value == "0.4 mm"
+        assert not any("Open-Meteo" in a for a in avisos(at))
+    con_demo(revisar)
+
+
+def prueba_demo_traer_clima_sin_resultado():
+    def revisar(at):
+        at.text_input(key="lugar_clima").input("Lugar Inexistente")
+        at.text_input(key="fecha_clima").input("2026-10-20")
+        con_clima_falso({"results": []}, {}, lambda: apretar(at, "Traer clima"))
+        assert any("Open-Meteo" in a for a in avisos(at)), avisos(at)
+    con_demo(revisar)
+
+
 if __name__ == "__main__":
     pruebas = [
         prueba_moderador_informe_final,
@@ -548,6 +602,10 @@ if __name__ == "__main__":
         prueba_demo_rechazo_sin_comentario,
         prueba_demo_error_de_conexion,
         prueba_demo_error_de_contexto_al_reanudar,
+        prueba_traer_clima,
+        prueba_traer_clima_lugar_no_encontrado,
+        prueba_demo_traer_clima,
+        prueba_demo_traer_clima_sin_resultado,
     ]
     pasaron = omitidas = 0
     for prueba in pruebas:
