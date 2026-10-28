@@ -13,6 +13,7 @@ from langgraph.types import Command
 from vet_agent import llm
 from vet_agent.agentes import base, climatico, diagnostico, bioseguridad, moderador
 from vet_agent.config import MAX_RONDAS, K_FRAGMENTOS
+from vet_agent.datos.planteles import buscar_planteles
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
 from vet_agent.main import pedir_decision
 from vet_agent.rag import buscar, cabecera, chunking, limpiar_texto
@@ -597,6 +598,15 @@ def prueba_cargar_escenarios_ejemplo():
     assert a["movimientos_animales"] is None
     assert "tipo_caso" not in ej
 
+# ---------- pruebas de la tabla de planteles simulados ----------
+
+def prueba_buscar_planteles_por_region():
+    df = buscar_planteles(region="Valparaíso")
+    assert len(df) == 5
+    assert set(df["region"]) == {"Valparaíso"}
+    assert set(df["id_plantel"]) == {"PL-001", "PL-002", "PL-003", "PL-004", "PL-005"}
+
+
 
 if __name__ == "__main__":
     pruebas = [
@@ -628,6 +638,7 @@ if __name__ == "__main__":
         prueba_demo_rechazo_sin_comentario,
         prueba_demo_error_de_conexion,
         prueba_demo_error_de_contexto_al_reanudar,
+        prueba_buscar_planteles_por_region,
     ]
     pasaron = omitidas = 0
     for prueba in pruebas:
