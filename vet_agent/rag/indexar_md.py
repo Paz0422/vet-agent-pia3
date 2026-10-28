@@ -11,6 +11,7 @@ en colecciones *_md.
   cabecera del .md (titulo, institucion, anio, enfermedad...).
 - La cabecera nunca se indexa como texto.
 - Si existe corpus/md/reporte_validacion.xlsx, solo se indexan los "OK".
+- TAMBIEN_EN: documentos que se indexan ademas en otra coleccion sin copiar el .md.
 """
 import argparse
 import pathlib
@@ -27,6 +28,10 @@ MODELO = "paraphrase-multilingual-MiniLM-L12-v2"  # el mismo que usa buscar.py p
 REPORTE = RAIZ / "corpus" / "md" / "reporte_validacion.xlsx"
 COLECCIONES = {"climatico": "climatico_md", "diagnostico": "diagnostico_md", "bioseguridad": "bioseguridad_md"}
 CAMPOS = ("titulo", "institucion", "anio", "enfermedad", "doi", "ruta", "url_origen", "fuente_metadatos")
+# .md de otra carpeta que ademas se indexan en esta coleccion (mismo archivo, mismo doc_id y
+# mismos pedazos D3_0, D3_1...). Entran solo si son "OK" en la validacion de su carpeta.
+# D3 (Plan de Contingencia IA v6.0) reemplaza a F1 y E6 en bioseguridad desde el Excel E4.
+TAMBIEN_EN = {"bioseguridad_md": ["diagnostico/D3"]}
 
 
 def aprobados(carpeta: pathlib.Path) -> set[str] | None:
@@ -53,11 +58,17 @@ def indexar(carpeta: pathlib.Path, coleccion: str) -> None:
 
     meta_csv = pd.read_csv(RAIZ / "corpus" / "metadatos.csv", dtype=str, encoding="utf-8-sig").fillna("").set_index("id")
     ok = aprobados(carpeta)
+    extra = [RAIZ / "corpus" / "md" / f"{r}.md" for r in TAMBIEN_EN.get(coleccion, [])]
+    ok_extra = {md: aprobados(md.parent) for md in extra}
+    for md in extra:
+        if not md.exists():
+            print(f"AVISO: {md.relative_to(RAIZ)} no existe; no se agrega a {coleccion}")
 
     ids, textos, metadatos, saltados = [], [], [], 0
-    for md in sorted(carpeta.glob("*.md")):
+    for md in sorted(carpeta.glob("*.md")) + [m for m in extra if m.exists()]:
         doc_id = md.stem
-        if ok is not None and doc_id not in ok:
+        permitidos = ok_extra.get(md, ok)
+        if permitidos is not None and doc_id not in permitidos:
             saltados += 1
             continue
         cab, cuerpo = cabecera.leer(md)

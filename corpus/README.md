@@ -1,7 +1,7 @@
 # Corpus eje D (Diagnóstico)
 
 Fuente: Drive de Investigación, `EXCEL CON FUENTES`, hoja DOCUMENTOS, filas D1 a D36.
-Se excluyen D2 y D26 porque son duplicados de B11/E9 y B4.
+D2 y D26 eran duplicados de B11 y B4; desde el Excel E4 ya no están en la planilla.
 
 - `D/`: aquí estaban los PDF (`D8.pdf`). Desde el 15/10/2026 ya no se suben al repo: su texto está en `md/diagnostico/`. Si Investigación entrega un PDF a mano, se deja en `D/` (git lo ignora) y se convierte con `pdf_local`.
 - `metadatos.csv`: contiene una fila por documento del eje D y puede incluir documentos de otros ejes cuando sea necesario complementar sus metadatos. Mantiene las columnas definidas en la Tarea 1.
@@ -20,6 +20,10 @@ Ya no hay pipeline `.txt` (se retiraron `extraer.py`, `indexar.py`, `corpus/txt/
 Tampoco se usa ya el scraper original de la Tarea 8 (`descargar.py` con `fuentes_D.csv`): la descarga la hace `descargar_md` a partir del Excel de fuentes. Si en tu PC quedaron `.md` sueltos en `corpus/md/` (sin carpeta de colección), son de ese script; `python -m vet_agent.rag.limpiar` los borra.
 
 `corpus/md/` no se sube a git (se regenera con los pasos de arriba), **salvo 18 documentos del eje D** que no se pueden bajar automáticamente y venían de PDF: D3, D5, D6, D9, D10, D14, D15, D16, D17, D18, D20, D21, D24, D25, D32, D33, D34 y D35. Esos `.md` sí están en el repo; no los borres.
+
+**Excel E4 (28/10/2026):** `fuentes/Revision_fuentes_scraping_PIA3.xlsx` es ahora la versión `alineado_E4` de Investigación. Se quitaron 15 filas duplicadas y la hoja "Equivalencias IDs" dice cuál es el ID vigente de cada una. Las citas y las preguntas de prueba usan los IDs vigentes.
+
+**D3 en dos colecciones:** D3 (Plan de Contingencia IA v6.0) reemplaza a F1 y E6. Se indexa en `diagnostico_md` y también en `bioseguridad_md` con el mismo `doc_id` (pedazos D3_0, D3_1…), a partir del mismo `md/diagnostico/D3.md` (ver `TAMBIEN_EN` en `indexar_md.py`).
 
 Las notas de abajo sobre la "Tarea 2" siguen valiendo: esos arreglos se aplican ahora desde `pdf_local.py`.
 
@@ -64,7 +68,7 @@ Ojo con D7: según las observaciones del Excel, Investigación tenía un PDF en 
 
 | ID | Nota |
 |----|------|
-| D3 | El Excel enlaza solo a la portada del SAG. Se usó el enlace directo de la fila F1, que es el mismo documento. |
+| D3 | Desde el Excel E4, la fila D3 trae el enlace directo al PDF del SAG (lo heredó de F1, que se retiró). El `.md` sigue saliendo del PDF local que está en git. |
 | D5 | Versión en español (WHO/WHE/CPI/2019.20), copia publicada en saludcapital.gov.co. Enlace oficial: `apps.who.int/iris/bitstream/handle/10665/327978/WHO-WHE-CPI-2019.20-spa.pdf`. No vigente (edición 2019–2020). |
 | D9 | Descargado de un mirror de IDEXX (`idexx-prod-base.django-aws.idexx.com`), mismo número de documento 06-0013212-05. |
 | D10, D13, D15, D20, D24 | Ver "Para las próximas tareas". |
