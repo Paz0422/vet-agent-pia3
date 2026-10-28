@@ -29,7 +29,6 @@ RESPUESTAS_SIMULADAS = {
         "probabilidad_presencia": "alta",
         "requiere_confirmacion": True,
         "prueba_confirmatoria_sugerida": "ver documento fuente",
-        "senal_ventas_tests": {"anomalia_detectada": False, "descripcion": "sin datos", "causas_alternativas": []},
         "riesgo_zoonotico": "presente en H5N1: ver documento fuente",
         "one_health": {"animal": "simulado", "humana": "simulado", "ambiental": "simulado"},
         "calidad_datos": "muestra pequeña",
@@ -62,6 +61,8 @@ RESPUESTAS_SIMULADAS = {
             "justificacion_riesgo": "simulado",
             "riesgos_identificados": [],
             "analisis_one_health_integrado": "simulado",
+            "hipotesis_alternativas": ["enfermedad de Newcastle (simulado)"],
+            "informacion_faltante": ["humedad relativa (simulado)"],
             "recomendaciones": [],
             "protocolos_bioseguridad": [],
             "incertidumbres_y_limitaciones": ["sin respaldo documental aún"],
@@ -80,14 +81,24 @@ def consultar_llm(instrucciones: str, pregunta: str, agente: str) -> str:
         return json.dumps(RESPUESTAS_SIMULADAS[agente], ensure_ascii=False)
 
     mensajes = [("system", instrucciones), ("human", pregunta)]
+    # LLM_REINTENTOS se lee aca (no al importar) para que evaluar.py lo pueda dejar en 0
     for intento in range(1, LLM_REINTENTOS + 2):
-        texto = _cliente().invoke(mensajes).content
-        try:
-            leer_json(texto)  # solo revisa que sea JSON valido
-            return texto
-        except json.JSONDecodeError:
-            print(f"[{agente}] la respuesta no es JSON valido (intento {intento})")
-    raise ValueError(f"[{agente}] el modelo no entrego JSON valido en {LLM_REINTENTOS + 1} intentos")
+        mensaje = _cliente().invoke(mensajes)
+        # si el modelo llego a max_tokens el JSON quedo cortado: volver a preguntar no lo arregla
+        if (mensaje.response_metadata or {}).get("finish_reason") == "length":
+            raise ValueError(f"[{agente}] la respuesta se cortó al llegar a max_tokens ({LLM_MAX_TOKENS}); "
+                             "sube LLM_MAX_TOKENS en el .env")
+        texto = mensaje.content
+        if not texto.strip():
+            motivo = "la respuesta vino vacía"
+        else:
+            try:
+                leer_json(texto)  # solo revisa que sea JSON valido
+                return texto
+            except json.JSONDecodeError:
+                motivo = "la respuesta no es JSON valido"
+        print(f"[{agente}] {motivo} (intento {intento})")
+    raise ValueError(f"[{agente}] {motivo} en {LLM_REINTENTOS + 1} intento(s)")
 
 
 def _cliente():

@@ -208,7 +208,8 @@ def con_buscador_de_prueba(prueba, usar_colecciones=False):
     try:
         col = buscar._cliente.get_or_create_collection("prueba_md", embedding_function=buscar._ef)
         col.add(ids=[f"P{i}" for i in range(len(PEDAZOS))], documents=[t for t, _ in PEDAZOS],
-                metadatas=[{"doc_id": f"P{i}", "enfermedad": e, "titulo": t} for i, (t, e) in enumerate(PEDAZOS)])
+                metadatas=[{"doc_id": f"P{i}", "chunk": 0, "enfermedad": e, "titulo": t,
+                            "institucion": "prueba", "anio": "2026"} for i, (t, e) in enumerate(PEDAZOS)])
         if usar_colecciones:
             base.COLECCIONES.update({a: "prueba_md" for a in base.COLECCIONES})
         return prueba()
@@ -638,6 +639,102 @@ def prueba_cargar_escenarios_ejemplo():
     assert a["movimientos_animales"] is None
     assert "tipo_caso" not in ej
 
+# ---------- pruebas del registro de corridas (evaluar.py, formato E1 v6) ----------
+
+CASO_EVALUAR = {"especie": "aves", "signos_clinicos": ["mortalidad súbita"],
+                "resultados_laboratorio": [{"prueba": "RT-PCR", "resultado": "positivo", "fecha": "2026-10-22"}]}
+
+
+def correr_evaluar(escenarios):
+    # corre evaluar() con el buscador en memoria y el registro en un archivo temporal;
+    # devuelve (texto del CSV, filas leidas del CSV)
+    import csv
+    import io
+    import tempfile
+    from vet_agent import evaluar
+
+    with tempfile.TemporaryDirectory() as temporal:
+        registro = pathlib.Path(temporal) / "registro.csv"
+        con_buscador_de_prueba(lambda: evaluar.evaluar(escenarios, 1, registro), usar_colecciones=True)
+        texto = registro.read_text(encoding="utf-8")
+    return texto, list(csv.DictReader(io.StringIO(texto)))
+
+
+def prueba_evaluar_registro_formato():
+    import re
+    from vet_agent import evaluar
+    from vet_agent.prompts import VERSION_PROMPTS
+
+    reintentos = llm.LLM_REINTENTOS
+    texto, filas = correr_evaluar([("IAAP-T1", CASO_EVALUAR)])
+    assert texto.splitlines()[0] == ",".join(f'"{c}"' for c in evaluar.COLUMNAS_REGISTRO)  # orden y comillas
+    assert [f["baseline"] for f in filas] == ["B1", "B2", "B3"]
+    for f in filas:
+        assert re.fullmatch(r"B[123]-IAAP-T1-R1-I1", f["id_corrida"]), f["id_corrida"]
+        assert f["estado"] == "ok" and f["intento"] == "1"
+        assert f["entrada"] == "IAAP-T1"
+        assert f["version_prompt_base"] == VERSION_PROMPTS
+    # salida = solo el informe, con las mismas claves en las 3 versiones
+    salidas = [json.loads(f["salida"]) for f in filas]
+    assert "estado" not in salidas[0] and "hipotesis_alternativas" in salidas[0]
+    assert all(s.keys() == salidas[0].keys() for s in salidas)
+    # fragmentos: vacio en B1 y doc_id_numero separados por ";" en B2 y B3
+    assert filas[0]["fragmentos"] == ""
+    for f in filas[1:]:
+        assert re.fullmatch(r"[\w-]+_\d+(;[\w-]+_\d+)*", f["fragmentos"]), f["fragmentos"]
+    assert llm.LLM_REINTENTOS == reintentos, "evaluar debe dejar LLM_REINTENTOS como estaba"
+
+
+def prueba_evaluar_reintenta_si_falla():
+    from vet_agent import evaluar
+
+    reintentos_vistos = []
+
+    def falla_la_primera_vez(caso):
+        reintentos_vistos.append(llm.LLM_REINTENTOS)
+        if len(reintentos_vistos) == 1:
+            raise ValueError("[moderador] la respuesta no es JSON valido en 1 intento(s)")
+        return evaluar.llm_sin_rag(caso)
+
+    originales = dict(evaluar.BASELINES)
+    evaluar.BASELINES.clear()
+    evaluar.BASELINES["B1"] = ("llm_sin_rag", falla_la_primera_vez)
+    try:
+        _, filas = correr_evaluar([("IAAP-T1", CASO_EVALUAR)])
+    finally:
+        evaluar.BASELINES.clear()
+        evaluar.BASELINES.update(originales)
+
+    assert [(f["id_corrida"], f["estado"]) for f in filas] == [("B1-IAAP-T1-R1-I1", "error"), ("B1-IAAP-T1-R1-I2", "ok")]
+    assert "JSON valido" in filas[0]["salida"]
+    assert reintentos_vistos == [0, 0], "durante la evaluacion consultar_llm no debe reintentar por su cuenta"
+
+
+def prueba_llm_respuesta_cortada_por_max_tokens():
+    # el modelo llego a max_tokens: error claro, sin volver a preguntar
+    class Mensaje:
+        content = '{"agente": "climatico", "resumen'
+        response_metadata = {"finish_reason": "length"}
+
+    class Cliente:
+        llamadas = 0
+
+        def invoke(self, _mensajes):
+            Cliente.llamadas += 1
+            return Mensaje()
+
+    cliente_original, simulacion = llm._modelo, llm.USAR_SIMULACION
+    llm._modelo, llm.USAR_SIMULACION = Cliente(), False
+    try:
+        llm.consultar_llm("instrucciones", "pregunta", "climatico")
+        assert False, "debía lanzar un error"
+    except ValueError as e:
+        assert "max_tokens" in str(e)
+    finally:
+        llm._modelo, llm.USAR_SIMULACION = cliente_original, simulacion
+    assert Cliente.llamadas == 1
+
+
 # ---------- pruebas de la tabla de planteles simulados ----------
 
 def prueba_buscar_planteles_por_region():
@@ -683,6 +780,9 @@ if __name__ == "__main__":
 
         prueba_buscar_planteles_por_region,
 
+        prueba_evaluar_registro_formato,
+        prueba_evaluar_reintenta_si_falla,
+        prueba_llm_respuesta_cortada_por_max_tokens,
     ]
     pasaron = omitidas = 0
     for prueba in pruebas:
