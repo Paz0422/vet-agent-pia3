@@ -107,7 +107,7 @@ def con_evidencia(salida: dict, fragmentos: list[dict]) -> dict:
     Con la redaccion simulada, ademas reemplaza los "fuentes" de ejemplo por los doc_id reales.
     """
     salida["evidencia"] = [
-        {campo: f.get(campo, "") for campo in ("doc_id", "institucion", "anio", "titulo", "texto")}
+        {campo: f.get(campo, "") for campo in ("doc_id", "chunk", "institucion", "anio", "titulo", "texto")}
         for f in fragmentos
     ]
     if llm.USAR_SIMULACION:

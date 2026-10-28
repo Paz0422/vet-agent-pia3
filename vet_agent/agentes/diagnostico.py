@@ -10,7 +10,6 @@ def diagnostico(estado: Estado) -> dict:
     instrucciones = rellenar(
         PROMPT_DIAGNOSTICO,
         resultados_lab=a_texto(caso.get("resultados_laboratorio")),
-        ventas_tests=a_texto(caso.get("ventas_tests")),
         contexto_rag=contexto,
     )
     pregunta = preparar_pregunta(estado, "diagnostico")

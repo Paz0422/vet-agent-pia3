@@ -9,71 +9,53 @@ Las 3 versiones (con los nombres que usa Investigacion):
 - B2 monoagente_rag: un solo agente que busca en las 3 colecciones y redacta el informe solo.
 - B3 multiagente:    el grafo actual, aprobando la revision humana automaticamente.
 
-Cada corrida (un escenario x una version x una repeticion) agrega una fila a
-resultados/registro_corridas.csv (UTF-8, todos los campos entre comillas), con el formato
-acordado con Investigacion. Si una corrida falla queda con estado "error" y se sigue con la
-siguiente. Ademas, resultados/comparacion.csv resume la ultima ejecucion.
+Cada intento de cada corrida agrega una fila a resultados/registro_corridas.csv (UTF-8, todos
+los campos entre comillas), con el formato acordado con Investigacion (documento E1 v6):
+- id_corrida = baseline-escenario-repeticion-intento, ej. B3-IAAP-01-R2-I1.
+- Si un intento termina en error (tiempo agotado, respuesta vacia, JSON invalido o texto
+  cortado por max_tokens), se repite la misma combinacion hasta MAX_INTENTOS en total.
+  Cada intento es una fila; apenas uno sale "ok" no se hacen mas.
+- Mientras corre, consultar_llm no reintenta por su cuenta (LLM_REINTENTOS = 0), asi cada
+  falla queda registrada como intento. La demo y main.py siguen usando LLM_REINTENTOS del .env.
+Ademas, resultados/comparacion.csv resume la ultima ejecucion (el ultimo intento de cada corrida).
 """
 import argparse
 import csv
-import hashlib
 import json
 import pathlib
 import subprocess
 import time
 import urllib.request
+from contextlib import contextmanager
 from datetime import datetime
 
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from vet_agent import llm, prompts
+from vet_agent import llm
 from vet_agent.agentes.base import COLECCIONES, SIN_CONTEXTO, a_texto, contexto_rag, texto_para_prompt
 from vet_agent.agentes.moderador import evidencia_unida, fuentes_de
 from vet_agent.config import LLM_MAX_TOKENS, LLM_MODELO, LLM_TEMPERATURA, LLM_URL
 from vet_agent.grafo import construir_grafo
 from vet_agent.llm import consultar_llm, leer_json
 from vet_agent.main import CASO_H5N1
-from vet_agent.prompts import PROMPT_MODERADOR
+from vet_agent.prompts import PROMPT_UNICO, VERSION_PROMPTS
 
 RAIZ = pathlib.Path(__file__).resolve().parents[1]
 SALIDA = RAIZ / "resultados" / "comparacion.csv"
 REGISTRO = RAIZ / "resultados" / "registro_corridas.csv"
 
-# columnas del registro, en el orden acordado con Investigacion
+# columnas del registro, en el orden acordado con Investigacion (E1 v6)
 COLUMNAS_REGISTRO = [
-    "id_corrida", "fecha", "version_sistema", "baseline", "escenario", "repeticion",
+    "id_corrida", "fecha", "version_sistema", "baseline", "escenario", "repeticion", "intento",
     "modelo_y_version", "temperatura", "max_tokens", "version_prompt_base",
     "entrada", "salida", "tiempo_s", "fragmentos", "estado",
 ]
 
+# intentos en total por combinacion (baseline, escenario, repeticion)
+MAX_INTENTOS = 4
+
 APROBAR = {"aprobado": True, "comentarios": ""}
-
-# el informe tiene que salir con el mismo formato en las 3 configuraciones para poder
-# compararlas, asi que se reutiliza el JSON de "informe_final" del prompt del moderador
-FORMATO_INFORME = PROMPT_MODERADOR.split("Si el informe está listo:", 1)[1].strip()
-
-# un solo prompt que hace el trabajo de los 4 agentes (lo usan las dos configuraciones simples)
-PROMPT_UNICO = """
-ROL
-Eres un asistente de vigilancia epidemiológica veterinaria con enfoque One Health. Analizas tú solo el caso completo (condiciones climáticas, resultados de laboratorio y bioseguridad del plantel) y redactas el informe epidemiológico prescriptivo final.
-
-ENTRADAS
-- Contexto recuperado: {contexto_rag}
-
-TAREAS
-1. Evalúa cómo el clima y el ambiente influyen en el riesgo de introducción y transmisión del patógeno.
-2. Interpreta los resultados de laboratorio. No emitas un diagnóstico definitivo: usa "compatible con", "sugiere", "no descarta".
-3. Propón medidas de prevención, contención y limpieza/desinfección, y de protección para personas y ambiente.
-4. Integra las tres dimensiones One Health y asigna un nivel de riesgo global justificado.
-
-REGLAS
-- Cita solo doc_id que aparezcan en el contexto recuperado. Si no hay documentos, deja las listas de fuentes vacías y decláralo como limitación.
-- No inventes productos, dosis ni tiempos de contacto. No ordenes sacrificios, cuarentenas ni restricciones: descríbelas como "medida que la autoridad competente podría evaluar".
-- El informe debe declarar que es apoyo a la decisión y requiere validación de un médico veterinario y de la autoridad competente.
-
-SALIDA (JSON)
-""" + FORMATO_INFORME + "\n"
 
 SIN_DOCUMENTOS = "(Sin documentos: esta configuración no busca en la base documental.)"
 
@@ -155,13 +137,6 @@ def modelo_y_version() -> str:
         return LLM_MODELO
 
 
-def version_prompt_base() -> str:
-    # hash corto del texto de todos los prompts: cambia solo si alguien edita un prompt
-    textos = [prompts.PROMPT_CLIMATICO, prompts.PROMPT_DIAGNOSTICO, prompts.PROMPT_BIOSEGURIDAD,
-              prompts.PROMPT_MODERADOR, PROMPT_UNICO]
-    return hashlib.sha256("\n".join(textos).encode("utf-8")).hexdigest()[:8]
-
-
 # ---------- escenarios ----------
 
 def cargar_escenarios(carpeta: str | None) -> list[tuple[str, dict]]:
@@ -188,23 +163,35 @@ def fuentes_citadas(informe: dict) -> int:
     return len({f.get("doc_id") for f in informe.get("fuentes_utilizadas", []) if isinstance(f, dict) and f.get("doc_id")})
 
 
-def correr(baseline: str, escenario: str, caso: dict, repeticion: int, id_corrida: str, fijos: dict) -> dict:
-    """Corre una version con un escenario y devuelve la fila del registro."""
+def id_corrida(baseline: str, escenario: str, repeticion: int, intento: int) -> str:
+    return f"{baseline}-{escenario}-R{repeticion}-I{intento}"
+
+
+def lista_fragmentos(fragmentos: list[dict]) -> str:
+    # "D3_2;D21_0": doc_id y numero de pedazo que guarda Chroma. Sin repetir: B2 puede traer
+    # el mismo pedazo de dos colecciones (D3 esta en diagnostico_md y bioseguridad_md)
+    return ";".join(dict.fromkeys(f"{f['doc_id']}_{f['chunk']}" for f in fragmentos))
+
+
+def correr(baseline: str, escenario: str, caso: dict, repeticion: int, intento: int, fijos: dict) -> dict:
+    """Corre un intento de una version con un escenario y devuelve la fila del registro."""
     _, configuracion = BASELINES[baseline]
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     inicio = time.perf_counter()
     try:
         informe, fragmentos = configuracion(caso)
+        if not informe:
+            raise ValueError("el sistema no entregó informe (respuesta vacía)")
         salida, estado = json.dumps(informe, ensure_ascii=False), "ok"
-        doc_ids = ";".join(dict.fromkeys(f["doc_id"] for f in fragmentos))
+        fragmentos = lista_fragmentos(fragmentos)
     except Exception as e:
-        # si una corrida falla se anota y se sigue con la siguiente
-        salida, estado, doc_ids = f"{type(e).__name__}: {e}", "error", ""
+        # tiempo agotado, respuesta vacia, JSON invalido o texto cortado: se anota y se reintenta
+        salida, estado, fragmentos = f"{type(e).__name__}: {e}", "error", ""
     return {
-        "id_corrida": id_corrida, "fecha": fecha, "baseline": baseline,
-        "escenario": escenario, "repeticion": repeticion, **fijos,
-        "entrada": json.dumps(caso, ensure_ascii=False), "salida": salida,
-        "tiempo_s": f"{time.perf_counter() - inicio:.1f}", "fragmentos": doc_ids, "estado": estado,
+        "id_corrida": id_corrida(baseline, escenario, repeticion, intento), "fecha": fecha,
+        "baseline": baseline, "escenario": escenario, "repeticion": repeticion, "intento": intento,
+        **fijos, "entrada": escenario, "salida": salida,
+        "tiempo_s": f"{time.perf_counter() - inicio:.1f}", "fragmentos": fragmentos, "estado": estado,
     }
 
 
@@ -235,24 +222,44 @@ def guardar(filas: list[dict], ruta: pathlib.Path = SALIDA) -> None:
                         "fuentes_citadas": fuentes_citadas(informe), "segundos": fila["tiempo_s"]})
 
 
+@contextmanager
+def sin_reintentos_llm():
+    # cada falla del LLM tiene que quedar como un intento en el registro, asi que mientras
+    # se evalua consultar_llm no vuelve a preguntar por su cuenta; despues queda como estaba
+    original = llm.LLM_REINTENTOS
+    llm.LLM_REINTENTOS = 0
+    try:
+        yield
+    finally:
+        llm.LLM_REINTENTOS = original
+
+
 def evaluar(escenarios: list[tuple[str, dict]], repeticiones: int = 1, registro: pathlib.Path = REGISTRO) -> list[dict]:
     fijos = {"version_sistema": version_sistema(), "modelo_y_version": modelo_y_version(),
              "temperatura": LLM_TEMPERATURA, "max_tokens": LLM_MAX_TOKENS,
-             "version_prompt_base": version_prompt_base()}
-    # id_corrida = momento en que parte la ejecucion + numero de corrida: unico aunque se agreguen filas
-    sesion = datetime.now().strftime("%Y%m%d-%H%M%S")
+             "version_prompt_base": VERSION_PROMPTS}
     filas, total, n = [], len(escenarios) * len(BASELINES) * repeticiones, 0
-    for escenario, caso in escenarios:
-        for repeticion in range(1, repeticiones + 1):
-            for baseline, (nombre, _) in BASELINES.items():
-                n += 1
-                print(f"\n=== [{n}/{total}] {escenario} · {baseline} ({nombre}) · repetición {repeticion}/{repeticiones} ===")
-                fila = correr(baseline, escenario, caso, repeticion, f"{sesion}-{n:03d}", fijos)
-                registrar(fila, registro)
-                filas.append(fila)
-                detalle = f"{len(fila['fragmentos'].split(';')) if fila['fragmentos'] else 0} documentos recuperados"
-                print(f"{baseline}: {fila['estado']}, {fila['tiempo_s']} s, {detalle}")
+    with sin_reintentos_llm():
+        for escenario, caso in escenarios:
+            for repeticion in range(1, repeticiones + 1):
+                for baseline, (nombre, _) in BASELINES.items():
+                    n += 1
+                    for intento in range(1, MAX_INTENTOS + 1):
+                        print(f"\n=== [{n}/{total}] {escenario} · {baseline} ({nombre}) · "
+                              f"repetición {repeticion}/{repeticiones} · intento {intento}/{MAX_INTENTOS} ===")
+                        fila = correr(baseline, escenario, caso, repeticion, intento, fijos)
+                        registrar(fila, registro)
+                        filas.append(fila)
+                        detalle = f"{len(fila['fragmentos'].split(';')) if fila['fragmentos'] else 0} fragmentos recuperados"
+                        print(f"{fila['id_corrida']}: {fila['estado']}, {fila['tiempo_s']} s, {detalle}")
+                        if fila["estado"] == "ok":
+                            break
     return filas
+
+
+def ultimos_intentos(filas: list[dict]) -> list[dict]:
+    # una fila por corrida: la que salio ok o, si todas fallaron, el ultimo intento
+    return [f for f in filas if f["estado"] == "ok" or f["intento"] == MAX_INTENTOS]
 
 
 def main() -> None:
@@ -267,11 +274,13 @@ def main() -> None:
         return
     print("Modo:", "SIMULADO (respuestas de ejemplo)" if llm.USAR_SIMULACION else f"LLM real ({LLM_MODELO})")
     filas = evaluar(escenarios, args.repeticiones)
-    guardar(filas)
-    print(f"\nListo: {len(filas)} corridas agregadas a {REGISTRO.relative_to(RAIZ)}; resumen en {SALIDA.relative_to(RAIZ)}")
-    errores = sum(f["estado"] == "error" for f in filas)
-    if errores:
-        print(f"OJO: {errores} corridas con error (ver la columna salida)")
+    finales = ultimos_intentos(filas)
+    guardar(finales)
+    print(f"\nListo: {len(filas)} intentos de {len(finales)} corridas agregados a {REGISTRO.relative_to(RAIZ)}; "
+          f"resumen en {SALIDA.relative_to(RAIZ)}")
+    fallidas = sum(f["estado"] == "error" for f in finales)
+    if fallidas:
+        print(f"OJO: {fallidas} corridas fallaron en los {MAX_INTENTOS} intentos (ver la columna salida)")
 
 
 if __name__ == "__main__":
