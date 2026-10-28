@@ -520,6 +520,46 @@ def prueba_demo_error_de_contexto_al_reanudar():
     con_demo(revisar)
 
 
+def prueba_api_endpoints():
+    import tempfile
+
+    from fastapi.testclient import TestClient
+    from vet_agent import api
+    from vet_agent.main import CASO_H5N1
+
+    parte_a = {"especie": "aves"}
+    escenario = {
+        "parte_a_entrada": parte_a,
+        "parte_b_esperada": {"diagnostico": "dato de prueba"},
+    }
+
+    carpeta_original = api.CARPETA_ESCENARIOS
+
+    with tempfile.TemporaryDirectory() as temporal:
+        api.CARPETA_ESCENARIOS = pathlib.Path(temporal)
+
+        try:
+            (api.CARPETA_ESCENARIOS / "IAAP-00.json").write_text(
+                json.dumps(escenario, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            with TestClient(api.app) as cliente:
+                lista = cliente.get("/escenarios")
+                assert lista.status_code == 200
+                assert lista.json() == ["IAAP-00"]
+
+                detalle = cliente.get("/escenarios/IAAP-00")
+                assert detalle.status_code == 200
+                assert detalle.json() == parte_a  # No expone la Parte B.
+
+                analisis = cliente.post("/analizar", json=CASO_H5N1)
+                assert analisis.status_code == 200, analisis.text
+                assert isinstance(analisis.json().get("informe"), dict)
+                assert isinstance(analisis.json().get("fuentes"), list)
+        finally:
+            api.CARPETA_ESCENARIOS = carpeta_original
+
 # ---------- prueba de la carga de escenarios (T2) ----------
 
 def prueba_cargar_escenarios_ejemplo():
@@ -638,7 +678,11 @@ if __name__ == "__main__":
         prueba_demo_rechazo_sin_comentario,
         prueba_demo_error_de_conexion,
         prueba_demo_error_de_contexto_al_reanudar,
+
+        prueba_api_endpoints,
+
         prueba_buscar_planteles_por_region,
+
     ]
     pasaron = omitidas = 0
     for prueba in pruebas:
