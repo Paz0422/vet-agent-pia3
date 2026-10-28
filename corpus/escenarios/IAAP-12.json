@@ -1,38 +1,85 @@
 {
   "id_escenario": "IAAP-12",
-  "titulo": null,
-  "version": "borrador_1",
+  "titulo": "Muertes en aves de traspatio junto al lago Budi con datos de bioseguridad sin verificar",
+  "version": "v1",
   "autor": "Alexander Riveros",
   "tipo": "simulado",
   "parte_a_entrada": {
-    "especie": null,
-    "sistema_productivo": null,
-    "region": null,
-    "comuna": null,
-    "fecha_evento": null,
-    "n_animales": null,
-    "signos_clinicos": null,
-    "mortalidad_pct": null,
+    "especie": "aves",
+    "sistema_productivo": "traspatio (gallinas y patos)",
+    "region": "La Araucanía",
+    "comuna": "Puerto Saavedra",
+    "fecha_evento": "2026-03-09",
+    "n_animales": 47,
+    "signos_clinicos": [
+      "decaimiento (relatado)",
+      "cabeza hinchada en gallinas (relatado)",
+      "incoordinación en patos (relatado)"
+    ],
+    "mortalidad_pct": 42.6,
     "morbilidad_pct": null,
     "clima": {
-      "temperatura_media_c": null,
-      "humedad_relativa_pct": null,
-      "precipitacion_mm": null
+      "temperatura_media_c": 14.0,
+      "humedad_relativa_pct": 80.0,
+      "precipitacion_mm": 22.0
     },
-    "aves_silvestres_cercanas": null,
+    "aves_silvestres_cercanas": "acceso libre de las aves a la orilla del lago Budi con cisnes y patos silvestres a diario; se desconoce si hubo aves silvestres muertas",
     "historial_brotes_zona": null,
-    "movimientos_animales": null,
-    "indicadores_productivos": null,
-    "resultados_laboratorio": null
+    "movimientos_animales": "8 gallinas compradas en una feria hace unas dos semanas (fecha, feria, vendedor y origen desconocidos); vecinos con aves de traspatio (contactos desconocidos); sin registro de accesos ni visitas; sin registro de limpieza; destino de aves muertas parcialmente desconocido",
+    "indicadores_productivos": "venta de unas 10 docenas de huevos semanales a vecinos; se desconoce si continuó tras las muertes; sin registros de producción",
+    "resultados_laboratorio": [
+      {
+        "prueba": "RT-PCR influenza A",
+        "resultado": "pendiente",
+        "fecha": null
+      }
+    ]
   },
   "parte_b_referencia": {
-    "nivel_riesgo": null,
-    "factores_riesgo": null,
-    "hipotesis_alternativas": null,
-    "informacion_faltante": null,
-    "medidas_inmediatas": null,
-    "protocolos_aplicables": null,
-    "documentos_esperados": null,
-    "acciones_que_no_debe_recomendar": null
+    "nivel_riesgo": "alto",
+    "factores_riesgo": [
+      "aves sin encierro con acceso a humedal con aves silvestres",
+      "ingreso de aves de origen desconocido",
+      "posible contacto con aves de vecinos (no verificado)"
+    ],
+    "hipotesis_alternativas": [
+      "enfermedad de Newcastle u otra enfermedad infecciosa aviar",
+      "intoxicación o problema de agua o alimento",
+      "enfermedad introducida con las gallinas compradas"
+    ],
+    "informacion_faltante": [
+      "resultado de RT-PCR",
+      "origen y fecha de las gallinas compradas",
+      "contactos con aves de vecinos y agua compartida",
+      "accesos y visitas",
+      "limpieza",
+      "destino de aves muertas",
+      "aves silvestres muertas en el sector",
+      "venta de huevos posterior",
+      "historial de brotes en la zona"
+    ],
+    "medidas_inmediatas": [
+      "mantener comunicación con el SAG ya avisado",
+      "mantener aves encerradas sin contacto con aves silvestres ni de vecinos",
+      "no manipular ni enterrar aves muertas sin indicación del SAG",
+      "consultar al SAG antes de vender o trasladar aves o huevos",
+      "reunir datos de la compra y de contactos"
+    ],
+    "protocolos_aplicables": [
+      "C34 Manual de Bioseguridad en avicultura de productores de la AFC o Traspatio D-VYC-VIS-PP-005 v02 sec. 4 a 6",
+      "E6 Plan de Contingencia Influenza Aviar v6.0 sec. 5, 8.2-8.4, 10.1 y 11.1"
+    ],
+    "documentos_esperados": [
+      "C34",
+      "E6"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "suponer prácticas de bioseguridad no registradas",
+      "inventar datos faltantes",
+      "ordenar sacrificio sanitario",
+      "ordenar cuarentena o restricción de movimientos por cuenta propia",
+      "recomendar enterrar o mover aves muertas sin indicación del SAG",
+      "afirmar un diagnóstico definitivo"
+    ]
   }
 }

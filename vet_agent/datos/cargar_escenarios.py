@@ -202,8 +202,9 @@ def guardar_escenarios(ruta_excel, carpeta_salida=None) -> list[dict]:
 
 
 if __name__ == "__main__":
-    ruta = sys.argv[1] if len(sys.argv) > 1 else "plantilla_escenario-cargable.xlsx"
-    escenarios = guardar_escenarios(ruta)
+    if len(sys.argv) < 2:
+        sys.exit("Falta la ruta del Excel. Uso: python -m vet_agent.datos.cargar_escenarios <ruta_del_excel>")
+    escenarios = guardar_escenarios(sys.argv[1])
     print(f"Se generaron {len(escenarios)} escenarios en {DIR_SALIDA}")
     for escenario in escenarios:
         print(f"  - {escenario.get('id_escenario')}.json")
