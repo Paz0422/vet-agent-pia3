@@ -3,20 +3,24 @@ import operator
 
 
 # Datos de entrada de un caso epidemiologico.
-# total=False porque no siempre vamos a tener todos los datos
+# total=False porque no siempre vamos a tener todos los datos.
+# Los nombres de campo calzan con la Parte A de los escenarios de Investigacion.
 class Caso(TypedDict, total=False):
     especie: str
-    sistema_productivo: str       # ej: plantel de engorda, reproductoras
-    ubicacion: str
-    periodo: str
+    sistema_productivo: str       # ej: ponedoras comerciales, broiler
+    region: str
+    comuna: str
+    fecha_evento: str             # AAAA-MM-DD
+    n_animales: int
     signos_clinicos: list[str]
-    mortalidad: str
-    resultados_laboratorio: list[str]   # PCR, ELISA, etc
-    clima: dict                   # temperatura, humedad, lluvias...
-    historial_brotes: str
+    mortalidad_pct: float         # porcentaje de mortalidad
+    morbilidad_pct: float         # porcentaje de morbilidad
+    resultados_laboratorio: list[dict]   # [{"prueba", "resultado", "fecha"}]
+    clima: dict                   # temperatura_media_c, humedad_relativa_pct, precipitacion_mm
+    aves_silvestres_cercanas: str
+    historial_brotes_zona: str
     movimientos_animales: str
-    manejo_bioseguridad: str      # desinfeccion, cuarentena, visitas...
-    ventas_tests: str             # venta/uso de kits diagnosticos en la zona
+    indicadores_productivos: str
 
 
 # Ficha compartida que recorre el grafo
