@@ -13,6 +13,7 @@ from langgraph.types import Command
 from vet_agent import llm
 from vet_agent.agentes import base, climatico, diagnostico, bioseguridad, moderador
 from vet_agent.config import MAX_RONDAS, K_FRAGMENTOS
+from vet_agent.datos import clima
 from vet_agent.datos.planteles import buscar_planteles
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
 from vet_agent.main import pedir_decision
@@ -744,6 +745,68 @@ def prueba_buscar_planteles_por_region():
     assert set(df["id_plantel"]) == {"PL-001", "PL-002", "PL-003", "PL-004", "PL-005"}
 
 
+# ---------- pruebas de vet_agent/datos/clima.py (Open-Meteo) ----------
+
+def con_clima_falso(geocodificacion, archivo, prueba):
+    # clima._get hace las dos llamadas (geocodificacion y archivo historico) en orden;
+    # se reemplaza por una funcion falsa para no depender de internet
+    respuestas = iter([geocodificacion, archivo])
+    original = clima._get
+    clima._get = lambda url, params: next(respuestas)
+    try:
+        return prueba()
+    finally:
+        clima._get = original
+
+
+def prueba_traer_clima():
+    geocodificacion = {"results": [{"latitude": -33.05, "longitude": -71.62}]}
+    archivo = {"daily": {"time": ["2026-10-20"], "temperature_2m_mean": [15.2],
+                          "relative_humidity_2m_mean": [78.0], "precipitation_sum": [0.4]}}
+    resultado = con_clima_falso(geocodificacion, archivo,
+                                 lambda: clima.traer_clima("Valparaíso", "2026-10-20"))
+    assert resultado == {"temperatura_media_c": 15.2, "humedad_relativa_pct": 78.0, "precipitacion_mm": 0.4}
+
+
+def prueba_traer_clima_lugar_no_encontrado():
+    resultado = con_clima_falso({"results": []}, {}, lambda: clima.traer_clima("Lugar Inexistente", "2026-10-20"))
+    assert resultado is None
+
+
+def prueba_traer_clima_datos_incompletos():
+    # Open-Meteo no tiene datos de los ultimos ~5 dias: los deja en null en vez de omitirlos
+    geocodificacion = {"results": [{"latitude": -33.05, "longitude": -71.62}]}
+    archivo = {"daily": {"time": ["2026-10-26"], "temperature_2m_mean": [15.2],
+                          "relative_humidity_2m_mean": [None], "precipitation_sum": [0.4]}}
+    resultado = con_clima_falso(geocodificacion, archivo,
+                                 lambda: clima.traer_clima("Valparaíso", "2026-10-26"))
+    assert resultado is None
+
+
+def prueba_demo_traer_clima():
+    geocodificacion = {"results": [{"latitude": -33.05, "longitude": -71.62}]}
+    archivo = {"daily": {"time": ["2026-10-20"], "temperature_2m_mean": [15.2],
+                          "relative_humidity_2m_mean": [78.0], "precipitation_sum": [0.4]}}
+
+    def revisar(at):
+        at.text_input(key="lugar_clima").input("Valparaíso")
+        at.text_input(key="fecha_clima").input("2026-10-20")
+        con_clima_falso(geocodificacion, archivo, lambda: apretar(at, "Traer clima"))
+        assert at.text_input(key="clima_temperatura_media_c").value == "15.2"
+        assert at.text_input(key="clima_humedad_relativa_pct").value == "78.0"
+        assert at.text_input(key="clima_precipitacion_mm").value == "0.4"
+        assert not any("Open-Meteo" in a for a in avisos(at))
+    con_demo(revisar)
+
+
+def prueba_demo_traer_clima_sin_resultado():
+    def revisar(at):
+        at.text_input(key="lugar_clima").input("Lugar Inexistente")
+        at.text_input(key="fecha_clima").input("2026-10-20")
+        con_clima_falso({"results": []}, {}, lambda: apretar(at, "Traer clima"))
+        assert any("Open-Meteo" in a for a in avisos(at)), avisos(at)
+    con_demo(revisar)
+
 
 if __name__ == "__main__":
     pruebas = [
@@ -783,6 +846,12 @@ if __name__ == "__main__":
         prueba_evaluar_registro_formato,
         prueba_evaluar_reintenta_si_falla,
         prueba_llm_respuesta_cortada_por_max_tokens,
+
+        prueba_traer_clima,
+        prueba_traer_clima_lugar_no_encontrado,
+        prueba_traer_clima_datos_incompletos,
+        prueba_demo_traer_clima,
+        prueba_demo_traer_clima_sin_resultado,
     ]
     pasaron = omitidas = 0
     for prueba in pruebas:

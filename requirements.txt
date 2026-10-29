@@ -12,5 +12,6 @@ defusedxml
 tqdm
 streamlit
 langchain-openai
+requests
 fastapi
 uvicorn
