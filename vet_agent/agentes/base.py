@@ -17,9 +17,9 @@ COLECCIONES = {
 
 # que partes del caso van en la consulta de cada agente (ademas de especie y signos)
 CAMPOS_CONSULTA = {
-    "climatico": ["clima", "ubicacion", "periodo"],
-    "diagnostico": ["resultados_laboratorio", "mortalidad"],
-    "bioseguridad": ["manejo_bioseguridad", "movimientos_animales", "sistema_productivo"],
+    "climatico": ["clima", "region", "comuna", "fecha_evento"],
+    "diagnostico": ["resultados_laboratorio", "mortalidad_pct"],
+    "bioseguridad": ["sistema_productivo", "movimientos_animales", "aves_silvestres_cercanas"],
 }
 
 
@@ -107,7 +107,7 @@ def con_evidencia(salida: dict, fragmentos: list[dict]) -> dict:
     Con la redaccion simulada, ademas reemplaza los "fuentes" de ejemplo por los doc_id reales.
     """
     salida["evidencia"] = [
-        {campo: f.get(campo, "") for campo in ("doc_id", "institucion", "anio", "titulo", "texto")}
+        {campo: f.get(campo, "") for campo in ("doc_id", "chunk", "institucion", "anio", "titulo", "texto")}
         for f in fragmentos
     ]
     if llm.USAR_SIMULACION:

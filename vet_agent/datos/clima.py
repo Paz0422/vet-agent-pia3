@@ -37,10 +37,15 @@ def traer_clima(lugar: str, fecha: str) -> dict | None:
         if not diario.get("time"):
             return None
 
-        return {
+        resultado = {
             "temperatura_media_c": diario["temperature_2m_mean"][0],
             "humedad_relativa_pct": diario["relative_humidity_2m_mean"][0],
             "precipitacion_mm": diario["precipitation_sum"][0],
         }
+        # Open-Meteo no tiene datos de los ultimos ~5 dias y los deja en null:
+        # mejor avisar que faltan que mostrar "None" en la demo
+        if any(v is None for v in resultado.values()):
+            return None
+        return resultado
     except (requests.RequestException, KeyError, IndexError, ValueError, TypeError):
         return None

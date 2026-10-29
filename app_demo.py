@@ -4,6 +4,7 @@ o la hace el modelo de LM Studio, segun USAR_SIMULACION en el .env.
 Uso (raiz del repo):
     streamlit run app_demo.py
 """
+import json
 import time
 import uuid
 
@@ -104,11 +105,24 @@ def etiqueta(campo: str) -> str:
     return campo.replace("_", " ").capitalize()
 
 
+def _como_texto(valor) -> str:
+    # los campos numéricos se muestran como texto para poder editarlos
+    return "" if valor is None else str(valor)
+
+
 def formulario_caso() -> dict:
     """Muestra el caso precargado y devuelve lo que quedo escrito."""
     caso = {}
     for campo, valor in CASO_H5N1.items():
-        if isinstance(valor, list):
+        if isinstance(valor, list) and valor and isinstance(valor[0], dict):
+            # lista de objetos (ej: resultados_laboratorio): se edita como JSON
+            texto = st.text_area(etiqueta(campo) + " (JSON)",
+                                 json.dumps(valor, ensure_ascii=False, indent=2))
+            try:
+                caso[campo] = json.loads(texto)
+            except json.JSONDecodeError:
+                caso[campo] = valor  # si lo rompen, se conserva el valor precargado
+        elif isinstance(valor, list):
             texto = st.text_area(etiqueta(campo) + " (uno por línea)", "\n".join(valor))
             caso[campo] = [linea.strip() for linea in texto.splitlines() if linea.strip()]
         elif isinstance(valor, dict):
@@ -122,9 +136,9 @@ def formulario_caso() -> dict:
                 if clave in st.session_state:
                     caso[campo][k] = col.text_input(etiqueta(k), key=clave)
                 else:
-                    caso[campo][k] = col.text_input(etiqueta(k), v, key=clave)
+                    caso[campo][k] = col.text_input(etiqueta(k), _como_texto(v), key=clave)
         else:
-            caso[campo] = st.text_input(etiqueta(campo), valor)
+            caso[campo] = st.text_input(etiqueta(campo), _como_texto(valor))
     return caso
 
 
@@ -267,10 +281,10 @@ def pedir_clima():
     resultado = clima.traer_clima(st.session_state.get("lugar_clima", ""), st.session_state.get("fecha_clima", ""))
     st.session_state.clima_error = resultado is None
     if resultado:
-        # mismas claves que usa formulario_caso() para los campos del dict "clima"
-        st.session_state["clima_temperatura_promedio"] = f"{resultado['temperatura_media_c']}°C"
-        st.session_state["clima_humedad_relativa"] = f"{resultado['humedad_relativa_pct']}%"
-        st.session_state["clima_precipitaciones"] = f"{resultado['precipitacion_mm']} mm"
+        # traer_clima() devuelve las mismas claves que CASO_H5N1["clima"], asi que
+        # calzan con las que usa formulario_caso() para precargar el campo (clima_<clave>)
+        for k, v in resultado.items():
+            st.session_state[f"clima_{k}"] = str(v)
 
 
 def revision(corriendo: bool):
@@ -314,8 +328,17 @@ pedido = st.session_state.get("pedido")
 corriendo = pedido is not None
 
 lugar_col, fecha_col, boton_col = st.columns([2, 2, 1])
-lugar_col.text_input("Lugar (para traer el clima)", key="lugar_clima", placeholder="Valparaíso")
-fecha_col.text_input("Fecha (AAAA-MM-DD)", key="fecha_clima", placeholder="2026-10-20")
+# primer dibujo: se precarga con la comuna/region y la fecha del caso; despues manda lo que escriba la persona
+lugar_defecto = CASO_H5N1.get("comuna") or CASO_H5N1.get("region", "")
+fecha_defecto = CASO_H5N1.get("fecha_evento", "")
+if "lugar_clima" in st.session_state:
+    lugar_col.text_input("Lugar (para traer el clima)", key="lugar_clima")
+else:
+    lugar_col.text_input("Lugar (para traer el clima)", lugar_defecto, key="lugar_clima")
+if "fecha_clima" in st.session_state:
+    fecha_col.text_input("Fecha (AAAA-MM-DD)", key="fecha_clima")
+else:
+    fecha_col.text_input("Fecha (AAAA-MM-DD)", fecha_defecto, key="fecha_clima")
 boton_col.write("")  # empareja el boton con la altura de los campos de al lado
 boton_col.button("Traer clima", on_click=pedir_clima, disabled=corriendo)
 if st.session_state.get("clima_error"):

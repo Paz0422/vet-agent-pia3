@@ -14,6 +14,7 @@ from vet_agent import llm
 from vet_agent.agentes import base, climatico, diagnostico, bioseguridad, moderador
 from vet_agent.config import MAX_RONDAS, K_FRAGMENTOS
 from vet_agent.datos import clima
+from vet_agent.datos.planteles import buscar_planteles
 from vet_agent.grafo import construir_grafo, despues_del_moderador, despues_de_revision_humana
 from vet_agent.main import pedir_decision
 from vet_agent.rag import buscar, cabecera, chunking, limpiar_texto
@@ -208,7 +209,8 @@ def con_buscador_de_prueba(prueba, usar_colecciones=False):
     try:
         col = buscar._cliente.get_or_create_collection("prueba_md", embedding_function=buscar._ef)
         col.add(ids=[f"P{i}" for i in range(len(PEDAZOS))], documents=[t for t, _ in PEDAZOS],
-                metadatas=[{"doc_id": f"P{i}", "enfermedad": e, "titulo": t} for i, (t, e) in enumerate(PEDAZOS)])
+                metadatas=[{"doc_id": f"P{i}", "chunk": 0, "enfermedad": e, "titulo": t,
+                            "institucion": "prueba", "anio": "2026"} for i, (t, e) in enumerate(PEDAZOS)])
         if usar_colecciones:
             base.COLECCIONES.update({a: "prueba_md" for a in base.COLECCIONES})
         return prueba()
@@ -520,6 +522,229 @@ def prueba_demo_error_de_contexto_al_reanudar():
     con_demo(revisar)
 
 
+def prueba_api_endpoints():
+    import tempfile
+
+    from fastapi.testclient import TestClient
+    from vet_agent import api
+    from vet_agent.main import CASO_H5N1
+
+    parte_a = {"especie": "aves"}
+    escenario = {
+        "parte_a_entrada": parte_a,
+        "parte_b_esperada": {"diagnostico": "dato de prueba"},
+    }
+
+    carpeta_original = api.CARPETA_ESCENARIOS
+
+    with tempfile.TemporaryDirectory() as temporal:
+        api.CARPETA_ESCENARIOS = pathlib.Path(temporal)
+
+        try:
+            (api.CARPETA_ESCENARIOS / "IAAP-00.json").write_text(
+                json.dumps(escenario, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            with TestClient(api.app) as cliente:
+                lista = cliente.get("/escenarios")
+                assert lista.status_code == 200
+                assert lista.json() == ["IAAP-00"]
+
+                detalle = cliente.get("/escenarios/IAAP-00")
+                assert detalle.status_code == 200
+                assert detalle.json() == parte_a  # No expone la Parte B.
+
+                analisis = cliente.post("/analizar", json=CASO_H5N1)
+                assert analisis.status_code == 200, analisis.text
+                assert isinstance(analisis.json().get("informe"), dict)
+                assert isinstance(analisis.json().get("fuentes"), list)
+        finally:
+            api.CARPETA_ESCENARIOS = carpeta_original
+
+# ---------- prueba de la carga de escenarios (T2) ----------
+
+def prueba_cargar_escenarios_ejemplo():
+    # reproduce la fila de ejemplo (IAAP-00) de la plantilla de Investigación
+    # y revisa que se convierta al JSON con la Parte A y la Parte B separadas
+    import openpyxl
+    from vet_agent.datos.cargar_escenarios import escenarios_de_hoja
+
+    cabecera = [
+        "id_escenario", "titulo", "version", "autor", "tipo",
+        "parte_a_entrada.especie", "parte_a_entrada.sistema_productivo",
+        "parte_a_entrada.region", "parte_a_entrada.comuna", "parte_a_entrada.fecha_evento",
+        "parte_a_entrada.n_animales", "parte_a_entrada.signos_clinicos",
+        "parte_a_entrada.mortalidad_pct", "parte_a_entrada.morbilidad_pct",
+        "parte_a_entrada.resultados_laboratorio_1.prueba",
+        "parte_a_entrada.resultados_laboratorio_1.resultado",
+        "parte_a_entrada.resultados_laboratorio_1.fecha",
+        "parte_a_entrada.resultados_laboratorio_2.prueba",
+        "parte_a_entrada.resultados_laboratorio_2.resultado",
+        "parte_a_entrada.resultados_laboratorio_2.fecha",
+        "parte_a_entrada.clima.temperatura_media_c",
+        "parte_a_entrada.clima.humedad_relativa_pct",
+        "parte_a_entrada.clima.precipitacion_mm",
+        "parte_a_entrada.aves_silvestres_cercanas",
+        "parte_a_entrada.historial_brotes_zona",
+        "parte_a_entrada.movimientos_animales",
+        "parte_a_entrada.indicadores_productivos",
+        "parte_b_referencia.nivel_riesgo",
+        "parte_b_referencia.documentos_esperados",
+        "tipo_caso",
+    ]
+    fila = [
+        "EJEMPLO IAAP-00", "Brote sospechoso IAAP en plantel de ponedoras", "borrador_1", "Nombre del autor", "simulado",
+        "aves", "ponedoras comerciales",
+        "Valparaíso", "(comuna)", "2026-10-20",
+        50000, "mortalidad súbita; edema facial",
+        2.5, 8,
+        "PCR", "positivo", "2026-10-22",
+        None, None, None,
+        14.2, 78, 3.2,
+        "humedal a 3 km con aves migratorias", None, None, None,
+        "alto", "C21; C45",
+        "concordante",
+    ]
+
+    libro = openpyxl.Workbook()
+    hoja = libro.active
+    hoja.title = "Escenarios"
+    hoja.append(cabecera)
+    hoja.append(fila)
+
+    escenarios = escenarios_de_hoja(hoja)
+    ej = next(e for e in escenarios if e["id_escenario"] == "IAAP-00")
+
+    # id normalizado y metadatos
+    assert ej["id_escenario"] == "IAAP-00"
+    assert ej["titulo"] == "Brote sospechoso IAAP en plantel de ponedoras"
+
+    # Parte A: anidación, números y listas
+    a = ej["parte_a_entrada"]
+    assert a["especie"] == "aves"
+    assert a["n_animales"] == 50000
+    assert a["mortalidad_pct"] == 2.5
+    assert a["signos_clinicos"] == ["mortalidad súbita", "edema facial"]
+    assert a["clima"]["temperatura_media_c"] == 14.2
+    assert a["resultados_laboratorio"] == [
+        {"prueba": "PCR", "resultado": "positivo", "fecha": "2026-10-22"}
+    ]
+
+    # Parte B: listas separadas por ";"
+    b = ej["parte_b_referencia"]
+    assert b["nivel_riesgo"] == "alto"
+    assert b["documentos_esperados"] == ["C21", "C45"]
+
+    # celdas vacías -> None y la columna tipo_caso se ignora
+    assert a["movimientos_animales"] is None
+    assert "tipo_caso" not in ej
+
+# ---------- pruebas del registro de corridas (evaluar.py, formato E1 v6) ----------
+
+CASO_EVALUAR = {"especie": "aves", "signos_clinicos": ["mortalidad súbita"],
+                "resultados_laboratorio": [{"prueba": "RT-PCR", "resultado": "positivo", "fecha": "2026-10-22"}]}
+
+
+def correr_evaluar(escenarios):
+    # corre evaluar() con el buscador en memoria y el registro en un archivo temporal;
+    # devuelve (texto del CSV, filas leidas del CSV)
+    import csv
+    import io
+    import tempfile
+    from vet_agent import evaluar
+
+    with tempfile.TemporaryDirectory() as temporal:
+        registro = pathlib.Path(temporal) / "registro.csv"
+        con_buscador_de_prueba(lambda: evaluar.evaluar(escenarios, 1, registro), usar_colecciones=True)
+        texto = registro.read_text(encoding="utf-8")
+    return texto, list(csv.DictReader(io.StringIO(texto)))
+
+
+def prueba_evaluar_registro_formato():
+    import re
+    from vet_agent import evaluar
+    from vet_agent.prompts import VERSION_PROMPTS
+
+    reintentos = llm.LLM_REINTENTOS
+    texto, filas = correr_evaluar([("IAAP-T1", CASO_EVALUAR)])
+    assert texto.splitlines()[0] == ",".join(f'"{c}"' for c in evaluar.COLUMNAS_REGISTRO)  # orden y comillas
+    assert [f["baseline"] for f in filas] == ["B1", "B2", "B3"]
+    for f in filas:
+        assert re.fullmatch(r"B[123]-IAAP-T1-R1-I1", f["id_corrida"]), f["id_corrida"]
+        assert f["estado"] == "ok" and f["intento"] == "1"
+        assert f["entrada"] == "IAAP-T1"
+        assert f["version_prompt_base"] == VERSION_PROMPTS
+    # salida = solo el informe, con las mismas claves en las 3 versiones
+    salidas = [json.loads(f["salida"]) for f in filas]
+    assert "estado" not in salidas[0] and "hipotesis_alternativas" in salidas[0]
+    assert all(s.keys() == salidas[0].keys() for s in salidas)
+    # fragmentos: vacio en B1 y doc_id_numero separados por ";" en B2 y B3
+    assert filas[0]["fragmentos"] == ""
+    for f in filas[1:]:
+        assert re.fullmatch(r"[\w-]+_\d+(;[\w-]+_\d+)*", f["fragmentos"]), f["fragmentos"]
+    assert llm.LLM_REINTENTOS == reintentos, "evaluar debe dejar LLM_REINTENTOS como estaba"
+
+
+def prueba_evaluar_reintenta_si_falla():
+    from vet_agent import evaluar
+
+    reintentos_vistos = []
+
+    def falla_la_primera_vez(caso):
+        reintentos_vistos.append(llm.LLM_REINTENTOS)
+        if len(reintentos_vistos) == 1:
+            raise ValueError("[moderador] la respuesta no es JSON valido en 1 intento(s)")
+        return evaluar.llm_sin_rag(caso)
+
+    originales = dict(evaluar.BASELINES)
+    evaluar.BASELINES.clear()
+    evaluar.BASELINES["B1"] = ("llm_sin_rag", falla_la_primera_vez)
+    try:
+        _, filas = correr_evaluar([("IAAP-T1", CASO_EVALUAR)])
+    finally:
+        evaluar.BASELINES.clear()
+        evaluar.BASELINES.update(originales)
+
+    assert [(f["id_corrida"], f["estado"]) for f in filas] == [("B1-IAAP-T1-R1-I1", "error"), ("B1-IAAP-T1-R1-I2", "ok")]
+    assert "JSON valido" in filas[0]["salida"]
+    assert reintentos_vistos == [0, 0], "durante la evaluacion consultar_llm no debe reintentar por su cuenta"
+
+
+def prueba_llm_respuesta_cortada_por_max_tokens():
+    # el modelo llego a max_tokens: error claro, sin volver a preguntar
+    class Mensaje:
+        content = '{"agente": "climatico", "resumen'
+        response_metadata = {"finish_reason": "length"}
+
+    class Cliente:
+        llamadas = 0
+
+        def invoke(self, _mensajes):
+            Cliente.llamadas += 1
+            return Mensaje()
+
+    cliente_original, simulacion = llm._modelo, llm.USAR_SIMULACION
+    llm._modelo, llm.USAR_SIMULACION = Cliente(), False
+    try:
+        llm.consultar_llm("instrucciones", "pregunta", "climatico")
+        assert False, "debía lanzar un error"
+    except ValueError as e:
+        assert "max_tokens" in str(e)
+    finally:
+        llm._modelo, llm.USAR_SIMULACION = cliente_original, simulacion
+    assert Cliente.llamadas == 1
+
+
+# ---------- pruebas de la tabla de planteles simulados ----------
+
+def prueba_buscar_planteles_por_region():
+    df = buscar_planteles(region="Valparaíso")
+    assert len(df) == 5
+    assert set(df["region"]) == {"Valparaíso"}
+    assert set(df["id_plantel"]) == {"PL-001", "PL-002", "PL-003", "PL-004", "PL-005"}
+
+
 # ---------- pruebas de vet_agent/datos/clima.py (Open-Meteo) ----------
 
 def con_clima_falso(geocodificacion, archivo, prueba):
@@ -548,6 +773,16 @@ def prueba_traer_clima_lugar_no_encontrado():
     assert resultado is None
 
 
+def prueba_traer_clima_datos_incompletos():
+    # Open-Meteo no tiene datos de los ultimos ~5 dias: los deja en null en vez de omitirlos
+    geocodificacion = {"results": [{"latitude": -33.05, "longitude": -71.62}]}
+    archivo = {"daily": {"time": ["2026-10-26"], "temperature_2m_mean": [15.2],
+                          "relative_humidity_2m_mean": [None], "precipitation_sum": [0.4]}}
+    resultado = con_clima_falso(geocodificacion, archivo,
+                                 lambda: clima.traer_clima("Valparaíso", "2026-10-26"))
+    assert resultado is None
+
+
 def prueba_demo_traer_clima():
     geocodificacion = {"results": [{"latitude": -33.05, "longitude": -71.62}]}
     archivo = {"daily": {"time": ["2026-10-20"], "temperature_2m_mean": [15.2],
@@ -557,9 +792,9 @@ def prueba_demo_traer_clima():
         at.text_input(key="lugar_clima").input("Valparaíso")
         at.text_input(key="fecha_clima").input("2026-10-20")
         con_clima_falso(geocodificacion, archivo, lambda: apretar(at, "Traer clima"))
-        assert at.text_input(key="clima_temperatura_promedio").value == "15.2°C"
-        assert at.text_input(key="clima_humedad_relativa").value == "78.0%"
-        assert at.text_input(key="clima_precipitaciones").value == "0.4 mm"
+        assert at.text_input(key="clima_temperatura_media_c").value == "15.2"
+        assert at.text_input(key="clima_humedad_relativa_pct").value == "78.0"
+        assert at.text_input(key="clima_precipitacion_mm").value == "0.4"
         assert not any("Open-Meteo" in a for a in avisos(at))
     con_demo(revisar)
 
@@ -598,12 +833,23 @@ if __name__ == "__main__":
         prueba_contexto_rag_sin_coleccion,
         prueba_evidencia_y_fuentes_reales,
         prueba_integracion_chroma_real,
+        prueba_cargar_escenarios_ejemplo,
         prueba_main_rechazo_pide_comentario,
         prueba_demo_rechazo_sin_comentario,
         prueba_demo_error_de_conexion,
         prueba_demo_error_de_contexto_al_reanudar,
+
+        prueba_api_endpoints,
+
+        prueba_buscar_planteles_por_region,
+
+        prueba_evaluar_registro_formato,
+        prueba_evaluar_reintenta_si_falla,
+        prueba_llm_respuesta_cortada_por_max_tokens,
+
         prueba_traer_clima,
         prueba_traer_clima_lugar_no_encontrado,
+        prueba_traer_clima_datos_incompletos,
         prueba_demo_traer_clima,
         prueba_demo_traer_clima_sin_resultado,
     ]
