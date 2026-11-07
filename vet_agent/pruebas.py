@@ -719,6 +719,142 @@ def prueba_evaluar_reintenta_si_falla():
     assert reintentos_vistos == [0, 0], "durante la evaluacion consultar_llm no debe reintentar por su cuenta"
 
 
+
+
+def prueba_evaluar_cache_reintento_b3_no_repite_agentes():
+    """Si el moderador falla en el intento 1 de B3, en el intento 2 los otros 3
+    agentes no vuelven a llamar al LLM (reutilizan la respuesta cacheada)."""
+    import sys
+    from vet_agent import evaluar
+    from vet_agent.main import CASO_H5N1
+
+    llamadas = {"climatico": 0, "diagnostico": 0, "bioseguridad": 0, "moderador": 0}
+    original = llm.consultar_llm
+    moderador_fallos = [0]
+
+    def mock_consultar(instrucciones, pregunta, agente):
+        llamadas[agente] = llamadas.get(agente, 0) + 1
+        if agente == "moderador":
+            moderador_fallos[0] += 1
+            if moderador_fallos[0] == 1:
+                raise ValueError("[moderador] falla simulada en intento 1")
+        return json.dumps(llm.RESPUESTAS_SIMULADAS[agente], ensure_ascii=False)
+
+    def parchear(fn):
+        llm.consultar_llm = fn
+        for m in list(sys.modules.values()):
+            if m is not None and getattr(m, "consultar_llm", None) is not fn:
+                # solo los que tenian la referencia original/importada
+                if hasattr(m, "consultar_llm"):
+                    try:
+                        m.consultar_llm = fn
+                    except Exception:
+                        pass
+
+    parchear(mock_consultar)
+    try:
+        con_buscador_de_prueba(lambda: None, usar_colecciones=True)  # setup colecciones? no, just need context
+    except Exception:
+        pass
+    # usar el buscador falso y el cache
+    from vet_agent.rag import buscar as buscar_mod
+    import chromadb
+    cli_o, ef_o = buscar_mod._cliente, buscar_mod._ef
+    col_o = dict(base.COLECCIONES)
+    buscar_mod._cliente, buscar_mod._ef = chromadb.EphemeralClient(), EmbeddingFalso()
+    try:
+        col = buscar_mod._cliente.get_or_create_collection("prueba_md", embedding_function=buscar_mod._ef)
+        col.add(ids=[f"P{i}" for i in range(len(PEDAZOS))], documents=[t for t,_ in PEDAZOS],
+                metadatas=[{"doc_id":f"P{i}","enfermedad":e,"titulo":t} for i,(t,e) in enumerate(PEDAZOS)])
+        base.COLECCIONES.update({a:"prueba_md" for a in base.COLECCIONES})
+
+        with evaluar.con_cache_respuestas():
+            # intento 1: falla el moderador
+            try:
+                evaluar.multiagente(CASO_H5N1)
+            except Exception:
+                pass
+            llamadas_intento1 = dict(llamadas)
+            # intento 2: debe reutilizar 3 agentes, moderador se llama de nuevo
+            try:
+                evaluar.multiagente(CASO_H5N1)
+            except Exception:
+                pass
+            llamadas_intento2 = dict(llamadas)
+    finally:
+        buscar_mod._cliente.delete_collection("prueba_md")
+        buscar_mod._cliente, buscar_mod._ef = cli_o, ef_o
+        base.COLECCIONES.clear(); base.COLECCIONES.update(col_o)
+        parchear(original)
+
+    # intento 1: los 3 agentes + moderador (falla)
+    assert llamadas_intento1["climatico"] == 1
+    assert llamadas_intento1["diagnostico"] == 1
+    assert llamadas_intento1["bioseguridad"] == 1
+    assert llamadas_intento1["moderador"] == 1
+    # intento 2: solo el moderador vuelve a llamar
+    assert llamadas_intento2["climatico"] == 1, llamadas_intento2
+    assert llamadas_intento2["diagnostico"] == 1, llamadas_intento2
+    assert llamadas_intento2["bioseguridad"] == 1, llamadas_intento2
+    assert llamadas_intento2["moderador"] == 2, llamadas_intento2
+
+
+def prueba_evaluar_cache_repeticion_nueva_vuelve_a_llamar():
+    """Una repeticion nueva usa un cache nuevo: vuelve a llamar a todos los agentes."""
+    import sys
+    from vet_agent import evaluar
+    from vet_agent.main import CASO_H5N1
+
+    llamadas = {"climatico": 0, "diagnostico": 0, "bioseguridad": 0, "moderador": 0}
+    original = llm.consultar_llm
+
+    def mock_consultar(instrucciones, pregunta, agente):
+        llamadas[agente] = llamadas.get(agente, 0) + 1
+        return json.dumps(llm.RESPUESTAS_SIMULADAS[agente], ensure_ascii=False)
+
+    def parchear(fn):
+        llm.consultar_llm = fn
+        for m in list(sys.modules.values()):
+            if m is not None and hasattr(m, "consultar_llm"):
+                try:
+                    m.consultar_llm = fn
+                except Exception:
+                    pass
+
+    from vet_agent.rag import buscar as buscar_mod
+    import chromadb
+    cli_o, ef_o = buscar_mod._cliente, buscar_mod._ef
+    col_o = dict(base.COLECCIONES)
+    buscar_mod._cliente, buscar_mod._ef = chromadb.EphemeralClient(), EmbeddingFalso()
+    parchear(mock_consultar)
+    try:
+        col = buscar_mod._cliente.get_or_create_collection("prueba_md", embedding_function=buscar_mod._ef)
+        col.add(ids=[f"P{i}" for i in range(len(PEDAZOS))], documents=[t for t,_ in PEDAZOS],
+                metadatas=[{"doc_id":f"P{i}","enfermedad":e,"titulo":t} for i,(t,e) in enumerate(PEDAZOS)])
+        base.COLECCIONES.update({a:"prueba_md" for a in base.COLECCIONES})
+
+        # combinacion 1 (cache propio)
+        with evaluar.con_cache_respuestas():
+            evaluar.multiagente(CASO_H5N1)
+        llamadas_r1 = dict(llamadas)
+        # combinacion 2 = repeticion nueva (cache nuevo)
+        with evaluar.con_cache_respuestas():
+            evaluar.multiagente(CASO_H5N1)
+        llamadas_r2 = dict(llamadas)
+    finally:
+        buscar_mod._cliente.delete_collection("prueba_md")
+        buscar_mod._cliente, buscar_mod._ef = cli_o, ef_o
+        base.COLECCIONES.clear(); base.COLECCIONES.update(col_o)
+        parchear(original)
+
+    assert llamadas_r1["climatico"] == 1 and llamadas_r1["moderador"] == 1
+    # todos vuelven a llamar en la repeticion nueva
+    assert llamadas_r2["climatico"] == 2, llamadas_r2
+    assert llamadas_r2["diagnostico"] == 2, llamadas_r2
+    assert llamadas_r2["bioseguridad"] == 2, llamadas_r2
+    assert llamadas_r2["moderador"] == 2, llamadas_r2
+
+
 def prueba_llm_respuesta_cortada_por_max_tokens():
     # el modelo llego a max_tokens: error claro, sin volver a preguntar
     class Mensaje:
@@ -943,6 +1079,8 @@ if __name__ == "__main__":
 
         prueba_evaluar_registro_formato,
         prueba_evaluar_reintenta_si_falla,
+        prueba_evaluar_cache_reintento_b3_no_repite_agentes,
+        prueba_evaluar_cache_repeticion_nueva_vuelve_a_llamar,
         prueba_llm_respuesta_cortada_por_max_tokens,
 
         prueba_traer_clima,

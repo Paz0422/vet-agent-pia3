@@ -24,6 +24,7 @@ import csv
 import json
 import pathlib
 import subprocess
+import sys
 import time
 import urllib.request
 from contextlib import contextmanager
@@ -234,6 +235,40 @@ def sin_reintentos_llm():
         llm.LLM_REINTENTOS = original
 
 
+@contextmanager
+def con_cache_respuestas():
+    """Guarda respuestas del LLM que salieron bien para reutilizarlas en reintentos
+    de la misma combinacion (baseline, escenario, repeticion).
+
+    Clave: (agente, instrucciones, pregunta). Si la pregunta cambia (rondas de
+    debate del moderador) no se reutiliza. El diccionario vive solo dentro del
+    with: al pasar a otra combinacion se crea uno nuevo.
+    """
+    cache = {}
+    original = llm.consultar_llm
+
+    def wrapper(instrucciones, pregunta, agente):
+        clave = (agente, instrucciones, pregunta)
+        if clave in cache:
+            return cache[clave]
+        texto = original(instrucciones, pregunta, agente)
+        cache[clave] = texto  # solo si salio bien (consultar_llm lanza si falla)
+        return texto
+
+    llm.consultar_llm = wrapper
+    importados = [m for m in list(sys.modules.values())
+                  if m is not None and getattr(m, "consultar_llm", None) is original]
+    for m in importados:
+        m.consultar_llm = wrapper
+    try:
+        yield cache
+    finally:
+        llm.consultar_llm = original
+        for m in importados:
+            if getattr(m, "consultar_llm", None) is wrapper:
+                m.consultar_llm = original
+
+
 def evaluar(escenarios: list[tuple[str, dict]], repeticiones: int = 1, registro: pathlib.Path = REGISTRO) -> list[dict]:
     fijos = {"version_sistema": version_sistema(), "modelo_y_version": modelo_y_version(),
              "temperatura": LLM_TEMPERATURA, "max_tokens": LLM_MAX_TOKENS,
@@ -244,16 +279,19 @@ def evaluar(escenarios: list[tuple[str, dict]], repeticiones: int = 1, registro:
             for repeticion in range(1, repeticiones + 1):
                 for baseline, (nombre, _) in BASELINES.items():
                     n += 1
-                    for intento in range(1, MAX_INTENTOS + 1):
-                        print(f"\n=== [{n}/{total}] {escenario} · {baseline} ({nombre}) · "
+                    # cache nuevo por combinacion: reintentos reutilizan respuestas
+                    # buenas, pero una repeticion nueva vuelve a llamar al LLM
+                    with con_cache_respuestas():
+                        for intento in range(1, MAX_INTENTOS + 1):
+                            print(f"\n=== [{n}/{total}] {escenario} · {baseline} ({nombre}) · "
                               f"repetición {repeticion}/{repeticiones} · intento {intento}/{MAX_INTENTOS} ===")
-                        fila = correr(baseline, escenario, caso, repeticion, intento, fijos)
-                        registrar(fila, registro)
-                        filas.append(fila)
-                        detalle = f"{len(fila['fragmentos'].split(';')) if fila['fragmentos'] else 0} fragmentos recuperados"
-                        print(f"{fila['id_corrida']}: {fila['estado']}, {fila['tiempo_s']} s, {detalle}")
-                        if fila["estado"] == "ok":
-                            break
+                            fila = correr(baseline, escenario, caso, repeticion, intento, fijos)
+                            registrar(fila, registro)
+                            filas.append(fila)
+                            detalle = f"{len(fila['fragmentos'].split(';')) if fila['fragmentos'] else 0} fragmentos recuperados"
+                            print(f"{fila['id_corrida']}: {fila['estado']}, {fila['tiempo_s']} s, {detalle}")
+                            if fila["estado"] == "ok":
+                                break
     return filas
 
 
