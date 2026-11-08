@@ -3,7 +3,8 @@
 
 # version de los prompts que queda en el registro de corridas (version_prompt_base).
 # Congelada el 2 de noviembre: si se edita cualquier prompt de este archivo, hay que subirla.
-VERSION_PROMPTS = "v1"
+# v2: se agregaron límites de longitud en la SALIDA de cada agente (tarea 3, perf/prompts-v2).
+VERSION_PROMPTS = "v2"
 
 PROMPT_CLIMATICO = """
 ROL
@@ -33,21 +34,25 @@ NO HAGAS
 - No infieras diagnóstico ni prevalencia; eso corresponde a otros agentes.
 - No extrapoles pronósticos más allá del periodo cubierto por los datos.
 
+LÍMITES DE LONGITUD (obligatorios)
+- Sé breve y directo: no repitas datos que ya están en otro campo ni copies el contexto recuperado.
+- Respeta los máximos indicados en cada campo de la SALIDA.
+
 SALIDA (JSON)
 {
   "agente": "climatico",
-  "resumen_condiciones": "string",
-  "factores_de_riesgo": [
-    {"factor": "string", "efecto": "favorece|desfavorece",
-     "mecanismo": "string", "tipo": "hecho|inferencia|supuesto",
+  "resumen_condiciones": "string (máx. 3 oraciones)",
+  "factores_de_riesgo": [   (máx. 5 ítems)
+    {"factor": "string (máx. 10 palabras)", "efecto": "favorece|desfavorece",
+     "mecanismo": "string (1 oración)", "tipo": "hecho|inferencia|supuesto",
      "fuentes": ["doc_id"]}
   ],
   "one_health": {
-    "animal": "string", "humana": "string", "ambiental": "string"
+    "animal": "string (1 oración)", "humana": "string (1 oración)", "ambiental": "string (1 oración)"
   },
   "nivel_riesgo_ambiental": "bajo|moderado|alto|muy_alto",
-  "ventana_temporal": "string",
-  "vacios_de_datos": ["string"],
+  "ventana_temporal": "string (1 línea)",
+  "vacios_de_datos": ["string"],   (máx. 4 ítems, 1 línea cada uno)
   "confianza": "alta|media|baja"
 }
 """
@@ -77,23 +82,27 @@ NO HAGAS
 - No emitas un diagnóstico definitivo. Usa la forma "compatible con", "sugiere", "no descarta".
 - No recomiendes tratamientos ni fármacos.
 
+LÍMITES DE LONGITUD (obligatorios)
+- Sé breve y directo: no repitas datos que ya están en otro campo ni copies el contexto recuperado.
+- Respeta los máximos indicados en cada campo de la SALIDA.
+
 SALIDA (JSON)
 {
   "agente": "diagnostico",
   "resumen_resultados": {
     "muestras": 0, "positivos": 0, "proporcion": 0.0, "pruebas": ["string"]
   },
-  "interpretacion": "string",
+  "interpretacion": "string (máx. 4 oraciones)",
   "probabilidad_presencia": "baja|moderada|alta|no_determinable",
   "requiere_confirmacion": true,
-  "prueba_confirmatoria_sugerida": "string",
-  "riesgo_zoonotico": "string",
+  "prueba_confirmatoria_sugerida": "string (1 oración)",
+  "riesgo_zoonotico": "string (máx. 2 oraciones)",
   "one_health": {
-    "animal": "string", "humana": "string", "ambiental": "string"
+    "animal": "string (1 oración)", "humana": "string (1 oración)", "ambiental": "string (1 oración)"
   },
-  "calidad_datos": "string",
-  "afirmaciones": [
-    {"texto": "string", "tipo": "hecho|inferencia|supuesto", "fuentes": ["doc_id"]}
+  "calidad_datos": "string (máx. 2 oraciones)",
+  "afirmaciones": [   (máx. 5 ítems)
+    {"texto": "string (1 oración)", "tipo": "hecho|inferencia|supuesto", "fuentes": ["doc_id"]}
   ],
   "confianza": "alta|media|baja"
 }
@@ -128,23 +137,28 @@ NO HAGAS
 - No inventes productos, diluciones, dosis ni tiempos de contacto. Si el documento no los especifica, escribe "ver documento fuente" o "no especificado".
 - No ordenes sacrificios, cuarentenas ni restricciones: descríbelas como "medida que la autoridad competente podría evaluar".
 
+LÍMITES DE LONGITUD (obligatorios)
+- Sé breve y directo: no repitas medidas entre campos ni copies el contexto recuperado.
+- Incluye solo las medidas más relevantes para el escenario, según su prioridad.
+- Respeta los máximos indicados en cada campo de la SALIDA.
+
 SALIDA (JSON)
 {
   "agente": "bioseguridad",
   "autoridad_competente": ["string"],
   "notificacion_obligatoria": "si|no|no_determinable",
-  "medidas": [
+  "medidas": [   (máx. 8 ítems)
     {"nivel": "prevencion|contencion|limpieza_desinfeccion",
-     "medida": "string",
-     "detalle": "string",
+     "medida": "string (máx. 12 palabras)",
+     "detalle": "string (máx. 2 oraciones)",
      "prioridad": "inmediata|corto_plazo|preventiva",
      "dimension_one_health": "animal|humana|ambiental",
      "requiere_autoridad": true,
      "fuentes": ["doc_id"]}
   ],
-  "proteccion_personas": ["string"],
-  "proteccion_ambiental": ["string"],
-  "vacios_documentales": ["string"],
+  "proteccion_personas": ["string"],   (máx. 4 ítems, 1 línea cada uno)
+  "proteccion_ambiental": ["string"],   (máx. 4 ítems, 1 línea cada uno)
+  "vacios_documentales": ["string"],   (máx. 4 ítems, 1 línea cada uno)
   "confianza": "alta|media|baja"
 }
 """
@@ -176,6 +190,7 @@ REGLAS
 - No agregues información nueva que ningún agente ni el contexto haya aportado.
 - Excluye del informe las afirmaciones que no pasaron la verificación, y lístalas aparte.
 - El informe debe declarar que es apoyo a la decisión y requiere validación de un médico veterinario y de la autoridad competente.
+- Respeta los máximos de longitud indicados en cada campo del informe. Sé conciso, pero completa todos los campos: no omitas ninguno.
 
 SALIDA (JSON)
 Si faltan aclaraciones y quedan rondas:
@@ -190,22 +205,22 @@ Si el informe está listo:
   "informe": {
     "resumen_ejecutivo": "string (máx. 5 líneas)",
     "nivel_riesgo_global": "bajo|moderado|alto|muy_alto",
-    "justificacion_riesgo": "string",
-    "riesgos_identificados": [
-      {"riesgo": "string", "dimension_one_health": "animal|humana|ambiental",
+    "justificacion_riesgo": "string (máx. 3 oraciones)",
+    "riesgos_identificados": [   (máx. 6 ítems)
+      {"riesgo": "string (1 oración)", "dimension_one_health": "animal|humana|ambiental",
        "evidencia": ["doc_id"], "confianza": "alta|media|baja"}
     ],
-    "analisis_one_health_integrado": "string",
-    "hipotesis_alternativas": ["string"],
-    "informacion_faltante": ["string"],
-    "recomendaciones": [
-      {"accion": "string", "prioridad": "inmediata|corto_plazo|preventiva",
+    "analisis_one_health_integrado": "string (máx. 5 oraciones)",
+    "hipotesis_alternativas": ["string"],   (máx. 3 ítems, 1 oración cada uno)
+    "informacion_faltante": ["string"],   (máx. 5 ítems, 1 línea cada uno)
+    "recomendaciones": [   (máx. 6 ítems)
+      {"accion": "string (1 oración)", "prioridad": "inmediata|corto_plazo|preventiva",
        "responsable_sugerido": "string", "requiere_autoridad": true,
        "fuentes": ["doc_id"]}
     ],
-    "protocolos_bioseguridad": ["string"],
-    "incertidumbres_y_limitaciones": ["string"],
-    "afirmaciones_descartadas": [{"texto": "string", "agente": "string", "motivo": "string"}],
+    "protocolos_bioseguridad": ["string"],   (máx. 6 ítems, 1 oración cada uno)
+    "incertidumbres_y_limitaciones": ["string"],   (máx. 4 ítems, 1 línea cada uno)
+    "afirmaciones_descartadas": [{"texto": "string", "agente": "string", "motivo": "string (1 línea)"}],
     "fuentes_utilizadas": [{"doc_id": "string", "organismo": "string", "anio": "string"}],
     "aviso": "Informe de apoyo a la decisión. Requiere validación de un médico veterinario y de la autoridad sanitaria competente."
   }
@@ -240,6 +255,7 @@ REGLAS
 - No inventes productos, dosis, tiempos de contacto ni umbrales.
 - No ordenes sacrificios, cuarentenas ni restricciones de movimiento: descríbelas como "medida que la autoridad competente podría evaluar" y marca requiere_autoridad como true.
 - Deja afirmaciones_descartadas como lista vacía.
+- Respeta los máximos de longitud indicados en cada campo del informe. Sé conciso, pero completa todos los campos: no omitas ninguno.
 - Responde solo con el JSON.
 
 SALIDA (JSON)
