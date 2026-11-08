@@ -43,6 +43,28 @@ Las dos causas son las que ataca la Tarea 1 de Tareas IV (`LLM_MAX_TOKENS` a 409
 
 Los tiempos de `tiempos_por_caso.csv` coinciden con la suma de los intentos de `registro_corridas.csv`.
 
+## Ojo al cargar el borrador de escenarios
+
+No cargues el borrador con el comando normal del cargador:
+
+```
+python -m vet_agent.datos.cargar_escenarios <ruta_del_excel>
+```
+
+Ese comando escribe en `corpus/escenarios/` y **sobrescribe los JSON que ya están ahí**. Con el borrador, el `IAAP-12.json` del repo (versión `v1`) se reemplaza por el `IAAP-12` del borrador (`borrador_3`), que tiene campos distintos. Por ejemplo:
+
+- `especie` dice "Gallinas y patos domésticos" en vez de "aves".
+- `indicadores_productivos` trae todo el relato del caso.
+
+Para usar el borrador sin tocar el repo, guárdalo en otra carpeta llamando a la función directamente. Así se hizo para esta prueba:
+
+```
+python -c "from vet_agent.datos.cargar_escenarios import guardar_escenarios; guardar_escenarios('<ruta_del_excel>', '<otra_carpeta>')"
+python -m vet_agent.evaluar --escenarios <otra_carpeta>
+```
+
+Si se sobrescribió por error, `git checkout -- corpus/escenarios/` recupera los archivos del repo.
+
 ## Archivos
 
 - `registro_corridas.csv`: los 8 intentos (6 corridas).
