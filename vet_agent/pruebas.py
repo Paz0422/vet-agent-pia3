@@ -5,6 +5,7 @@ import pathlib
 import chromadb
 import httpx
 import openai
+import requests
 from chromadb.api.types import EmbeddingFunction
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END
@@ -451,17 +452,34 @@ def prueba_main_rechazo_pide_comentario():
 APP_DEMO = pathlib.Path(__file__).resolve().parents[1] / "app_demo.py"
 
 
-def con_demo(prueba):
-    """Corre `prueba(at)` con la demo cargada y Chroma vacio (los agentes siguen sin contexto RAG)."""
+def sin_internet(url, params):
+    raise requests.ConnectionError("sin internet (prueba)")
+
+
+def con_demo(prueba, internet=sin_internet):
+    """Corre `prueba(at)` con la demo cargada y Chroma vacio (los agentes siguen sin contexto RAG).
+
+    Por defecto Open-Meteo no responde (el mapa de la comuna no aparece): asi las pruebas no
+    dependen de internet. `internet` reemplaza a clima._get para simular otra respuesta.
+    """
+    import streamlit as st
     from streamlit.testing.v1 import AppTest
-    cliente_original, ef_original = buscar._cliente, buscar._ef
+    cliente_original, ef_original, get_original = buscar._cliente, buscar._ef, clima._get
     buscar._cliente, buscar._ef = chromadb.EphemeralClient(), EmbeddingFalso()
+    clima._get = internet
+    st.cache_data.clear()  # el mapa guarda las coordenadas: que no queden de otra prueba
     try:
         at = AppTest.from_file(str(APP_DEMO), default_timeout=120)
         at.run()
         prueba(at)
     finally:
-        buscar._cliente, buscar._ef = cliente_original, ef_original
+        buscar._cliente, buscar._ef, clima._get = cliente_original, ef_original, get_original
+        st.cache_data.clear()
+
+
+def mapas(at):
+    # st.map se dibuja como un grafico deck.gl
+    return at.get("deck_gl_json_chart")
 
 
 def apretar(at, etiqueta):
@@ -532,6 +550,8 @@ def prueba_demo_error_de_conexion():
         con_llm_que_falla(climatico, openai.APIConnectionError(request=pedido), lambda: apretar(at, "Analizar"))
         assert any("servidor de LM Studio" in e for e in errores(at)), errores(at)
         assert not hay_boton(at, "Aprobar") and hay_boton(at, "Reintentar")
+        # en el diagrama queda marcado el agente que fallo
+        assert at.session_state["grafo_vista"]["nodos"]["climatico"]["estado"] == "error"
         # con el LLM de vuelta, Reintentar sigue desde el agente que fallo
         apretar(at, "Reintentar")
         assert not errores(at) and "__interrupt__" in at.session_state["resultado"]
@@ -1064,6 +1084,111 @@ def prueba_demo_boton_descarga_solo_tras_aprobar():
     con_demo(revisar)
 
 
+# ---------- pruebas del rediseno de la demo (diagrama, mapa, comparacion) ----------
+
+def prueba_demo_diagrama_del_grafo_en_vivo():
+    # el diagrama sigue al grafo: agentes listos, la firma en pausa, el rechazo y la aprobacion
+    def nodos(at):
+        return {n: d["estado"] for n, d in at.session_state["grafo_vista"]["nodos"].items()}
+
+    def revisar(at):
+        assert set(nodos(at).values()) == {"espera"}
+        apretar(at, "Analizar")
+        assert nodos(at) == {"climatico": "listo", "diagnostico": "listo", "bioseguridad": "listo",
+                             "moderador": "listo", "revision_humana": "pausa"}
+        assert at.session_state["grafo_vista"]["ronda"] == 1
+        at.text_area(key="comentarios").input("falta humedad")
+        apretar(at, "Rechazar")
+        vista = at.session_state["grafo_vista"]
+        assert vista["rechazo"] and vista["ronda"] == 2 and nodos(at)["revision_humana"] == "pausa"
+        apretar(at, "Aprobar")
+        assert nodos(at)["revision_humana"] == "aprobado"
+        assert not at.session_state["grafo_vista"]["rechazo"]
+    con_demo(revisar)
+
+
+def prueba_demo_sin_internet_no_hay_mapa():
+    # sin internet la demo funciona igual: sin mapa y sin errores ni avisos
+    def revisar(at):
+        assert not mapas(at)
+        apretar(at, "Analizar")
+        assert not mapas(at) and not errores(at) and not avisos(at)
+    con_demo(revisar)
+
+
+def prueba_demo_mapa_de_la_comuna():
+    lugares = []
+
+    def geocodificacion(url, params):
+        lugares.append(params["name"])
+        return {"results": [{"latitude": -32.95, "longitude": -71.53}]}
+
+    def revisar(at):
+        from vet_agent.main import CASO_H5N1
+        assert len(mapas(at)) == 1  # pantalla de inicio
+        assert lugares == [CASO_H5N1["comuna"]], "busca la comuna del caso (y una sola vez: queda guardada)"
+        apretar(at, "Analizar")
+        assert len(mapas(at)) == 1  # junto a las tarjetas One Health
+    con_demo(revisar, internet=geocodificacion)
+
+
+def prueba_demo_comparar_versiones():
+    def revisar(at):
+        corridas = at.selectbox(key="corrida_comparar")
+        assert "comparacion.csv" in corridas.options
+        corridas.select("prueba_2casos/comparacion.csv").run()
+        assert not at.exception, at.exception
+        # formato nuevo de evaluar.py: se elige el caso (escenario x repeticion)
+        assert len(at.selectbox(key="caso_comparar").options) == 2
+    con_demo(revisar)
+
+
+def prueba_vista_demo_escapa_html_y_numera_citas():
+    from vet_agent import vista_demo as vista
+    informe = {"riesgos_identificados": [{"riesgo": "<script>x</script>", "dimension_one_health": "humana",
+                                          "evidencia": ["D8", "D3"]}, "un texto suelto"],
+               "recomendaciones": [{"accion": "aislar", "fuentes": ["D3", "SAG-1"]}],
+               "fuentes_utilizadas": [{"doc_id": "D24"}]}
+    numeros = vista.numerar_citas(informe)
+    assert numeros == {"D8": 1, "D3": 2, "SAG-1": 3, "D24": 4}, "en el orden en que aparecen"
+    tarjeta = vista.tarjeta_one_health("humana", "Humana", "", informe["riesgos_identificados"], [], numeros)
+    assert "<script>" not in tarjeta and "&lt;script&gt;" in tarjeta
+    assert '<sup class="va-nota">1,2</sup>' in tarjeta
+    assert "<script>" not in vista.lista_riesgos(informe["riesgos_identificados"], numeros)
+    assert vista.COLOR_RIESGO["alto"] in vista.medidor("alto") and "PENDIENTE" in vista.medidor(None)
+
+
+def prueba_vista_demo_siguiente_nodo():
+    from vet_agent import vista_demo as vista
+    assert vista.siguiente_nodo("climatico", {}) == "diagnostico"
+    assert vista.siguiente_nodo("bioseguridad", {}) == "moderador"
+    debate = {"evaluacion": {"estado": "requiere_debate", "preguntas": [pregunta("diagnostico")]}, "revisiones": 1}
+    assert vista.siguiente_nodo("moderador", debate) == "climatico"
+    final = {"evaluacion": {"estado": "informe_final"}, "revisiones": 1}
+    assert vista.siguiente_nodo("moderador", final) == "revision_humana"
+    assert vista.siguiente_nodo("revision_humana", {"decision_humana": {"aprobado": False}}) == "moderador"
+    assert vista.siguiente_nodo("revision_humana", {"decision_humana": {"aprobado": True}}) is None
+
+
+def prueba_vista_demo_lee_comparaciones():
+    from vet_agent import vista_demo as vista
+    carpeta = pathlib.Path(__file__).resolve().parents[1] / "resultados"
+    archivos = vista.archivos_comparacion(carpeta)
+    assert next(iter(archivos)) == "comparacion.csv", "la de la raiz va primero"
+    # formato viejo: llm_sin_rag/monoagente_rag/multiagente pasan a B1/B2/B3
+    viejo = vista.leer_comparacion(archivos["comparacion.csv"])
+    assert [f["version"] for f in viejo] == ["B1", "B2", "B3"]
+    assert viejo[0]["informe"]["nivel_riesgo_global"] and viejo[0]["segundos"] > 0
+    # una corrida que fallo queda con su error y sin informe
+    fallo = vista.leer_comparacion(archivos["mlx/comparacion_corrida1_fallo_multiagente.csv"])
+    b3 = next(f for f in fallo if f["version"] == "B3")
+    assert b3["informe"] is None and b3["error"].startswith("ERROR")
+    assert "Falló" in vista.tarjeta_version("B3", b3)
+    # formato nuevo: trae escenario y repeticion
+    nuevo = vista.leer_comparacion(archivos["prueba_2casos/comparacion.csv"])
+    assert {f["escenario"] for f in nuevo} == {"IAAP-01", "IAAP-12"}
+
+
 # ---------- pruebas del script que revisa escenarios (Tarea 3) ----------
 
 def prueba_revisar_escenarios_tmp():
@@ -1159,6 +1284,13 @@ if __name__ == "__main__":
         prueba_demo_cargar_escenario,
         prueba_demo_volver_al_caso_de_ejemplo,
         prueba_demo_boton_descarga_solo_tras_aprobar,
+        prueba_demo_diagrama_del_grafo_en_vivo,
+        prueba_demo_sin_internet_no_hay_mapa,
+        prueba_demo_mapa_de_la_comuna,
+        prueba_demo_comparar_versiones,
+        prueba_vista_demo_escapa_html_y_numera_citas,
+        prueba_vista_demo_siguiente_nodo,
+        prueba_vista_demo_lee_comparaciones,
 
         prueba_revisar_escenarios_tmp,
     ]
