@@ -744,6 +744,28 @@ def prueba_llm_respuesta_cortada_por_max_tokens():
     assert Cliente.llamadas == 1
 
 
+def cliente_con(forzar_json: bool):
+    """Crea un ChatOpenAI nuevo con el LLM_FORZAR_JSON indicado (sin tocar el .env)."""
+    # _cliente() guarda el modelo en llm._modelo la primera vez: hay que limpiarlo para
+    # que la prueba vea uno construido con el LLM_FORZAR_JSON que le interesa
+    modelo_original, forzar_original = llm._modelo, llm.LLM_FORZAR_JSON
+    llm._modelo, llm.LLM_FORZAR_JSON = None, forzar_json
+    try:
+        return llm._cliente()
+    finally:
+        llm._modelo, llm.LLM_FORZAR_JSON = modelo_original, forzar_original
+
+
+def prueba_cliente_pasa_response_format_si_forzar_json_esta_activado():
+    cliente = cliente_con(forzar_json=True)
+    assert cliente.model_kwargs.get("response_format") == llm.FORMATO_JSON
+
+
+def prueba_cliente_no_pasa_response_format_si_forzar_json_esta_apagado():
+    cliente = cliente_con(forzar_json=False)
+    assert "response_format" not in (cliente.model_kwargs or {})
+
+
 # ---------- pruebas de la tabla de planteles simulados ----------
 
 def prueba_buscar_planteles_por_region():
@@ -944,6 +966,8 @@ if __name__ == "__main__":
         prueba_evaluar_registro_formato,
         prueba_evaluar_reintenta_si_falla,
         prueba_llm_respuesta_cortada_por_max_tokens,
+        prueba_cliente_pasa_response_format_si_forzar_json_esta_activado,
+        prueba_cliente_no_pasa_response_format_si_forzar_json_esta_apagado,
 
         prueba_traer_clima,
         prueba_traer_clima_lugar_no_encontrado,

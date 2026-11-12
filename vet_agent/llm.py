@@ -2,9 +2,14 @@ import json
 import re
 
 from vet_agent.config import (USAR_SIMULACION, LLM_URL, LLM_MODELO, LLM_TEMPERATURA,
-                              LLM_REINTENTOS, LLM_TIMEOUT, LLM_MAX_TOKENS)
+                              LLM_REINTENTOS, LLM_TIMEOUT, LLM_MAX_TOKENS, LLM_FORZAR_JSON)
 
 _modelo = None  # se crea la primera vez que se usa
+
+# esquema minimo (cualquier objeto JSON): le alcanza a LM Studio para no devolver texto
+# fuera de un objeto JSON. Uno por agente seria mas estricto, pero este sirve para los 4
+# (climatico, diagnostico, bioseguridad, moderador) sin mantener 4 esquemas distintos
+FORMATO_JSON = {"type": "json_schema", "json_schema": {"name": "respuesta_agente", "schema": {"type": "object"}}}
 
 # respuestas de ejemplo con el mismo formato que piden los prompts
 RESPUESTAS_SIMULADAS = {
@@ -106,9 +111,10 @@ def _cliente():
     global _modelo
     if _modelo is None:
         from langchain_openai import ChatOpenAI
+        model_kwargs = {"response_format": FORMATO_JSON} if LLM_FORZAR_JSON else {}
         _modelo = ChatOpenAI(base_url=LLM_URL, api_key="lm-studio", model=LLM_MODELO,
                              temperature=LLM_TEMPERATURA, timeout=LLM_TIMEOUT, max_retries=0,
-                             max_tokens=LLM_MAX_TOKENS)
+                             max_tokens=LLM_MAX_TOKENS, model_kwargs=model_kwargs)
     return _modelo
 
 
