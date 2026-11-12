@@ -219,18 +219,64 @@ CSS = """
 :root {
   --va-acento: #0f766e; --va-oscuro: #0b3d3a; --va-tinta: #0b1220; --va-texto: #1f2937;
   --va-gris: #4b5563; --va-gris-2: #6b7280; --va-linea: #d5dedc; --va-suave: #eef5f4;
+  /* colores de apoyo (familia fria): rojo, ambar y verde quedan solo para el riesgo */
+  --va-turquesa: #14b8a6; --va-indigo: #4338ca; --va-cielo: #0369a1; --va-violeta: #7c3aed; --va-cian: #0e7490;
+  --va-curva: cubic-bezier(.2, .75, .25, 1);
 }
+
+/* ---------- animaciones (se apagan si el sistema pide menos movimiento) ---------- */
+@keyframes va-entrar { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes va-pop { 0% { opacity: 0; transform: scale(.7); } 70% { transform: scale(1.06); } 100% { opacity: 1; transform: none; } }
+@keyframes va-crecer { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes va-latido { 0%, 100% { box-shadow: 0 0 0 0 rgba(94, 234, 212, .7); } 50% { box-shadow: 0 0 0 6px rgba(94, 234, 212, 0); } }
+@keyframes va-campana { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-14deg); } 40% { transform: rotate(12deg); } 60% { transform: rotate(-8deg); } 80% { transform: rotate(5deg); } }
+@keyframes va-fluir { to { stroke-dashoffset: -24; } }
+@keyframes va-brillo { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+.va-banda, .va-riesgo, .va-aviso, .va-notif, .va-cols, .va-h2, .va-grafo { animation: va-entrar .55s var(--va-curva) both; }
+.va-aviso { animation-delay: .12s; }
+.va-notif { animation-delay: .08s; }
+.va-ahora li { animation: va-entrar .5s var(--va-curva) both; }
+.va-ahora li:nth-child(2) { animation-delay: .1s; } .va-ahora li:nth-child(3) { animation-delay: .2s; }
+.va-ahora li:nth-child(4) { animation-delay: .3s; } .va-ahora li:nth-child(n+5) { animation-delay: .4s; }
+@media (prefers-reduced-motion: reduce) {
+  [class*="va-"], [class*="va-"]::before, [class*="va-"]::after, .st-key-firma,
+  [data-testid="stBaseButton-primary"], [data-testid="stBaseButton-secondary"] { animation: none !important; transition: none !important; }
+}
+
+/* botones: degradado y una leve elevacion al pasar el mouse */
+[data-testid="stBaseButton-primary"] { background: linear-gradient(135deg, #0f766e, #0d9488) !important; border: none !important;
+  box-shadow: 0 6px 16px rgba(15, 118, 110, .28); transition: transform .15s var(--va-curva), box-shadow .15s; }
+[data-testid="stBaseButton-primary"]:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(15, 118, 110, .36); }
+[data-testid="stBaseButton-secondary"] { transition: transform .15s var(--va-curva), border-color .15s, color .15s; }
+[data-testid="stBaseButton-secondary"]:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--va-acento) !important; color: var(--va-acento) !important; }
+/* campos: anillo suave al escribir */
+[data-baseweb="input"], [data-baseweb="textarea"] { transition: box-shadow .2s; }
+[data-baseweb="input"]:focus-within, [data-baseweb="textarea"]:focus-within { box-shadow: 0 0 0 3px rgba(20, 184, 166, .25); }
+/* desplegables (caso analizado, proceso, evidencia) */
+[data-testid="stExpander"] summary { transition: background .2s; border-radius: 10px; }
+[data-testid="stExpander"] summary:hover { background: var(--va-suave); }
 [data-testid="stMainBlockContainer"] { padding-top: 3.6rem !important; padding-bottom: 0 !important; max-width: 1380px; }
 
 /* encabezado */
-.va-banda { background: var(--va-oscuro); color: #fff; border-radius: 14px; padding: 1rem 1.4rem;
-  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.va-banda { background: linear-gradient(115deg, #0b3d3a 0%, #0f5f59 45%, #0f766e 75%, #0e7490 100%);
+  background-size: 160% 100%; animation: va-entrar .55s var(--va-curva) both, va-brillo 14s ease-in-out infinite alternate;
+  color: #fff; border-radius: 16px; padding: 1.05rem 1.4rem; position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; box-shadow: 0 10px 30px rgba(11, 61, 58, .22); }
+/* dos circulos decorativos, muy suaves */
+.va-banda::before, .va-banda::after { content: ""; position: absolute; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(94, 234, 212, .22), transparent 70%); }
+.va-banda::before { width: 320px; height: 320px; right: -80px; top: -160px; }
+.va-banda::after { width: 220px; height: 220px; right: 260px; bottom: -150px; }
+.va-banda > * { position: relative; z-index: 1; }
 .va-banda .logo { width: 46px; height: 46px; border-radius: 11px; background: #fff; color: var(--va-oscuro);
   font-weight: 900; display: grid; place-items: center; font-size: 1.15rem; }
 .va-banda .t b { display: block; font-size: 1.4rem; letter-spacing: .08em; line-height: 1.15; }
 .va-banda .t span { font-size: .95rem; opacity: .88; }
 .va-banda .modo { margin-left: auto; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.4);
-  border-radius: 999px; padding: .3rem .9rem; font-size: .88rem; font-weight: 600; }
+  border-radius: 999px; padding: .3rem .9rem; font-size: .88rem; font-weight: 600;
+  display: inline-flex; align-items: center; gap: .5rem; backdrop-filter: blur(4px); }
+.va-banda .modo::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #5eead4;
+  animation: va-latido 2.2s ease-in-out infinite; }
 .va-banda .nota { flex-basis: 100%; font-size: .85rem; opacity: .82; margin-top: -.25rem; }
 
 /* titulos */
@@ -238,19 +284,36 @@ CSS = """
   display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }
 .va-h2 small { font-size: .92rem; font-weight: 500; color: var(--va-gris); }
 .va-h3 { font-size: .82rem; letter-spacing: .13em; text-transform: uppercase; font-weight: 800;
-  color: var(--va-oscuro); margin: .9rem 0 .35rem; padding-bottom: .3rem; border-bottom: 2px solid var(--va-oscuro); }
+  color: var(--va-oscuro); margin: .9rem 0 .35rem; padding-bottom: .3rem; border-bottom: 2px solid var(--va-oscuro);
+  display: flex; align-items: center; gap: .5rem; }
+/* cada seccion del formulario y cada dimension One Health con su color */
+.va-h3.s1 { color: var(--va-acento); border-color: var(--va-acento); }
+.va-h3.s2, .va-h3.oh-animal { color: var(--va-indigo); border-color: var(--va-indigo); }
+.va-h3.s3 { color: var(--va-cielo); border-color: var(--va-cielo); }
+.va-h3.s4, .va-h3.oh-humana { color: var(--va-violeta); border-color: var(--va-violeta); }
+.va-h3.oh-ambiental { color: var(--va-cian); border-color: var(--va-cian); }
+.va-h3 .num { display: inline-grid; place-items: center; width: 1.45rem; height: 1.45rem; border-radius: 50%;
+  background: currentColor; letter-spacing: 0; font-size: .78rem; }
+.va-h3 .num b { color: #fff; }
+.va-h2::before { content: ""; width: 6px; align-self: stretch; border-radius: 3px; margin-right: .1rem;
+  background: linear-gradient(180deg, var(--va-turquesa), var(--va-acento)); }
 .va-vacio { color: var(--va-gris-2); font-style: italic; }
 
 /* 1. nivel de riesgo */
 .va-riesgo { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; border-radius: 16px; overflow: hidden; margin-top: .6rem; }
-.va-riesgo .nivel { color: #fff; padding: 1.3rem 1.5rem 1.2rem; }
+.va-riesgo { box-shadow: 0 14px 34px rgba(11, 18, 32, .12); }
+.va-riesgo .nivel { color: #fff; padding: 1.3rem 1.5rem 1.2rem; position: relative; overflow: hidden;
+  background-image: linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,0) 55%); }
+.va-riesgo .nivel .v { animation: va-pop .65s .15s var(--va-curva) both; }
+.va-escala span.on { transform-origin: left; animation: va-crecer .7s .35s var(--va-curva) both;
+  box-shadow: 0 0 10px rgba(255,255,255,.7); }
 .va-riesgo .k { font-size: .85rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 800; }
 .va-riesgo .nivel .v { font-size: 3.6rem; font-weight: 900; line-height: 1.05; margin: .25rem 0 .8rem; }
 .va-escala { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .va-escala span { height: 9px; border-radius: 5px; background: rgba(255,255,255,.3); }
 .va-escala span.on { background: #fff; }
 .va-escala-et { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; font-size: .74rem; margin-top: .3rem; opacity: .92; }
-.va-riesgo .porque { padding: 1.3rem 1.7rem; background: var(--va-suave); }
+.va-riesgo .porque { padding: 1.3rem 1.7rem; background: linear-gradient(135deg, #f0fdfa, var(--va-suave) 60%, #eef2ff); }
 .va-riesgo .porque .k { color: var(--va-oscuro); }
 .va-riesgo .frase { font-size: 1.35rem; font-weight: 700; color: var(--va-tinta); line-height: 1.38; margin: .35rem 0 .7rem; }
 .va-riesgo .res { font-size: 1rem; color: var(--va-texto); line-height: 1.55; margin: 0 0 .8rem; }
@@ -265,14 +328,19 @@ CSS = """
   padding: .75rem 1.1rem; font-weight: 600; color: var(--va-tinta); margin-top: .8rem; border-radius: 0 10px 10px 0; font-size: 1rem; }
 
 /* 2. que hacer ahora */
-.va-notif { display: flex; gap: .9rem; align-items: center; background: var(--va-oscuro); color: #fff;
-  border-radius: 12px; padding: .9rem 1.2rem; font-size: 1.08rem; margin: .3rem 0 .6rem; }
-.va-notif .ico { font-size: 1.5rem; }
+.va-notif { display: flex; gap: .9rem; align-items: center; background: linear-gradient(110deg, var(--va-oscuro), #0f5f59 70%, var(--va-cian));
+  color: #fff; border-radius: 12px; padding: .9rem 1.2rem; font-size: 1.08rem; margin: .3rem 0 .6rem;
+  box-shadow: 0 8px 22px rgba(11, 61, 58, .2); }
+.va-notif .ico { font-size: 1.5rem; display: inline-block; transform-origin: 50% 20%;
+  animation: va-campana 1.1s .6s ease-in-out 2; }
 .va-notif.dudosa { background: #fff; color: var(--va-tinta); border: 2px solid var(--va-oscuro); }
 .va-ahora { list-style: none; counter-reset: n; margin: 0; padding: 0; }
 .va-ahora li { counter-increment: n; display: grid; grid-template-columns: 2.6rem 1fr; gap: .9rem;
-  padding: .8rem 0; border-bottom: 1px solid var(--va-linea); }
-.va-ahora li::before { content: counter(n); width: 2.3rem; height: 2.3rem; border-radius: 50%; background: var(--va-acento);
+  padding: .8rem .6rem; border-bottom: 1px solid var(--va-linea); border-radius: 10px;
+  transition: background .2s, transform .2s var(--va-curva); }
+.va-ahora li:hover { background: #f0fdfa; transform: translateX(4px); }
+.va-ahora li::before { content: counter(n); width: 2.3rem; height: 2.3rem; border-radius: 50%;
+  background: linear-gradient(135deg, var(--va-turquesa), var(--va-acento)); box-shadow: 0 4px 10px rgba(15, 118, 110, .3);
   color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 1.1rem; }
 .va-ahora .acc { font-size: 1.2rem; font-weight: 700; color: var(--va-tinta); line-height: 1.35; }
 .va-ahora .det { font-size: .9rem; color: var(--va-gris); margin-top: .2rem; }
@@ -306,6 +374,10 @@ CSS = """
 .va-flecha.activa { stroke: var(--va-acento); }
 .va-punta.activa { fill: var(--va-acento); }
 .va-flecha.vuelta { stroke-dasharray: 5 5; }
+/* la flecha que entra al agente que esta pensando "fluye" hacia el */
+.va-flecha.fluye { stroke: var(--va-turquesa); stroke-width: 3; stroke-dasharray: 6 6; animation: va-fluir .7s linear infinite; }
+.va-punta.fluye { fill: var(--va-turquesa); }
+.va-nodo.pensando rect { filter: drop-shadow(0 0 6px rgba(20, 184, 166, .55)); }
 .va-rotulo { font: 12px system-ui, "Segoe UI", sans-serif; fill: #8a9593; }
 .va-rotulo.activa { fill: var(--va-oscuro); font-weight: 700; }
 @keyframes va-pulso { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: .25; } }
@@ -328,8 +400,11 @@ CSS = """
 /* barra de firma fija abajo: Streamlit envuelve el contenedor en un stLayoutWrapper de su
    mismo alto, asi que lo "sticky" tiene que ser el envoltorio */
 div[data-testid="stLayoutWrapper"]:has(> .st-key-firma) { position: sticky; bottom: 0; z-index: 60; }
-.st-key-firma { background: #fff; border-top: 4px solid var(--va-oscuro); border-radius: 14px 14px 0 0;
-  padding: .7rem 1.1rem .85rem; box-shadow: 0 -10px 28px rgba(11, 18, 32, .14); margin-top: 1.2rem; }
+.st-key-firma { background: #fff; border-radius: 14px 14px 0 0; position: relative;
+  padding: .8rem 1.1rem .85rem; box-shadow: 0 -10px 28px rgba(11, 18, 32, .14); margin-top: 1.2rem;
+  animation: va-entrar .5s .2s var(--va-curva) both; }
+.st-key-firma::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; border-radius: 14px 14px 0 0;
+  background: linear-gradient(90deg, var(--va-oscuro), var(--va-turquesa), var(--va-cian)); }
 .va-firma-t { font-size: .85rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; color: var(--va-oscuro); }
 @media (max-width: 800px) { .va-riesgo { grid-template-columns: 1fr; } }
 </style>
@@ -346,8 +421,12 @@ def h2(titulo: str, sub: str = "") -> str:
     return f'<div class="va-h2">{esc(titulo)}' + (f"<small>{esc(sub)}</small>" if sub else "") + "</div>"
 
 
-def h3(titulo: str) -> str:
-    return f'<div class="va-h3">{esc(titulo)}</div>'
+def h3(titulo: str, clase: str = "") -> str:
+    """Titulo de seccion. "1 · Plantel..." toma el color de su seccion y el numero va en un circulo."""
+    numero, sep, resto = titulo.partition(" · ")
+    if sep and numero.isdigit():
+        return f'<div class="va-h3 s{numero} {clase}"><span class="num"><b>{numero}</b></span>{esc(resto)}</div>'
+    return f'<div class="va-h3 {clase}">{esc(titulo)}</div>'
 
 
 # ====================== diagrama del grafo ======================
@@ -400,6 +479,8 @@ def diagrama_grafo(vista: dict) -> str:
     partes = []
     for i in range(len(NODOS) - 1):
         activa = " activa" if nodos[NODOS[i]]["estado"] in ("listo", "omitido") else ""
+        if activa and nodos[NODOS[i + 1]]["estado"] == "pensando":
+            activa = " fluye"  # el trabajo "fluye" hacia el agente que esta pensando
         x1, x2, ym = xs[i] + ancho, xs[i + 1], y + alto / 2
         partes.append(f'<line class="va-flecha{activa}" x1="{x1}" y1="{ym}" x2="{x2 - 2}" y2="{ym}"/>')
         partes.append(_punta(x2, ym, "der", activa))
@@ -599,10 +680,12 @@ def _lista(items, vacio: str) -> str:
     return "<ul>" + "".join(f"<li>{i}</li>" for i in items) + "</ul>"
 
 
-def columnas(bloques: list[tuple[str, list[str], str]]) -> str:
-    """Columnas con titulo y lista; cada item ya viene como HTML escapado."""
+def columnas(bloques: list[tuple[str, list[str], str]], clases: list[str] | None = None) -> str:
+    """Columnas con titulo y lista; cada item ya viene como HTML escapado. `clases` da color a cada titulo."""
+    clases = (clases or []) + [""] * len(bloques)
     return '<div class="va-cols">' + "".join(
-        f"<div>{h3(titulo)}{_lista(items, vacio)}</div>" for titulo, items, vacio in bloques) + "</div>"
+        f"<div>{h3(titulo, clase)}{_lista(items, vacio)}</div>"
+        for (titulo, items, vacio), clase in zip(bloques, clases)) + "</div>"
 
 
 def items_recomendacion(recs: list[dict], numeros: dict[str, int]) -> list[str]:
@@ -623,7 +706,7 @@ def riesgos_one_health(riesgos: list, numeros: dict[str, int]) -> str:
     sin_dim = [r for r in todos if str(r.get("dimension_one_health", "")).lower() not in {d for d, _, _ in DIMENSIONES}]
     if sin_dim:
         bloques.append((f"Otros · {len(sin_dim)}", [esc(r.get("riesgo", "")) for r in sin_dim], ""))
-    return columnas(bloques)
+    return columnas(bloques, [f"oh-{dim}" for dim, _, _ in DIMENSIONES])
 
 
 def para_decidir_mejor(informe: dict, sin_dato: str) -> str:
