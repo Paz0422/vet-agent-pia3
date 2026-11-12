@@ -1180,7 +1180,13 @@ def prueba_vista_demo_escapa_html_y_numera_citas():
     malo = {"nivel_riesgo_global": "alto", "justificacion_riesgo": "<b>hola</b>. Segunda frase."}
     bloque = vista.bloque_riesgo(malo, "media", "", "pendiente")
     assert vista.COLOR_RIESGO["alto"] in bloque and "&lt;b&gt;hola&lt;/b&gt;." in bloque and "<b>hola" not in bloque
-    assert "Confianza media" in bloque
+    # la confianza general la calcula la demo: va como "estimada" y con su texto de ayuda
+    assert "Confianza estimada: media" in bloque and "Confianza media" not in bloque
+    assert f'title="{vista.esc(vista.AYUDA_CONFIANZA_AGENTES)}"' in bloque, "sin confianza en los riesgos, usa la de los agentes"
+    con_riesgos = vista.bloque_riesgo({"riesgos_identificados": [{"confianza": "alta"}]}, "alta", "", "")
+    assert f'title="{vista.esc(vista.AYUDA_CONFIANZA)}"' in con_riesgos
+    assert vista.AYUDA_CONFIANZA == ("Calculada a partir de la confianza de cada riesgo identificado: "
+                                     "la más frecuente y, si hay empate, la más baja.")
     assert "SIN NIVEL" in vista.bloque_riesgo({}, None, "", "pendiente")
     inmediatas = vista.acciones_inmediatas([{"accion": "<i>x</i>", "fuentes": ["D3"]}], numeros, "")
     assert "<i>x" not in inmediatas and '<sup class="va-nota">2</sup>' in inmediatas

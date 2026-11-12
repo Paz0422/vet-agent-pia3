@@ -246,7 +246,12 @@ CSS = """
 .va-riesgo .frase { font-size: 1.35rem; font-weight: 700; color: var(--va-tinta); line-height: 1.38; margin: .35rem 0 .7rem; }
 .va-riesgo .res { font-size: 1rem; color: var(--va-texto); line-height: 1.55; margin: 0 0 .8rem; }
 .va-meta { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; font-size: .9rem; color: var(--va-gris); }
-.va-conf { background: var(--va-oscuro); color: #fff; font-weight: 700; border-radius: 999px; padding: .2rem .8rem; }
+.va-conf { background: var(--va-oscuro); color: #fff; font-weight: 700; border-radius: 999px; padding: .2rem .45rem .2rem .8rem;
+  cursor: help; display: inline-flex; align-items: center; gap: .45rem; }
+.va-ayuda { width: 1.15rem; height: 1.15rem; border-radius: 50%; background: #fff; color: var(--va-oscuro);
+  display: inline-grid; place-items: center; font-size: .75rem; font-weight: 900; }
+/* texto solo para lectores de pantalla (el title no siempre se lee) */
+.va-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .va-aviso { display: flex; gap: .7rem; align-items: center; border-left: 6px solid var(--va-oscuro); background: #f1f3f5;
   padding: .75rem 1.1rem; font-weight: 600; color: var(--va-tinta); margin-top: .8rem; border-radius: 0 10px 10px 0; font-size: 1rem; }
 
@@ -470,6 +475,16 @@ def indice_evidencia(resultados: dict) -> dict[str, dict]:
 
 
 ORDEN_CONFIANZA = ["baja", "media", "alta"]
+# la confianza general no la entrega el moderador: la calcula la demo, y el texto de ayuda lo explica
+AYUDA_CONFIANZA = ("Calculada a partir de la confianza de cada riesgo identificado: "
+                   "la más frecuente y, si hay empate, la más baja.")
+AYUDA_CONFIANZA_AGENTES = ("Calculada a partir de la confianza de cada agente, porque los riesgos del informe "
+                           "no la indican: la más frecuente y, si hay empate, la más baja.")
+
+
+def _confianzas_de_riesgos(informe: dict) -> list[str]:
+    valores = [str(como_dict(r, "riesgo").get("confianza", "")).lower() for r in informe.get("riesgos_identificados") or []]
+    return [v for v in valores if v in ORDEN_CONFIANZA]
 
 
 def confianza_global(informe: dict, resultados: dict) -> str | None:
@@ -477,8 +492,7 @@ def confianza_global(informe: dict, resultados: dict) -> str | None:
 
     En un empate gana la mas baja: ante la duda, mejor no sobrestimar.
     """
-    valores = [str(como_dict(r, "riesgo").get("confianza", "")).lower() for r in informe.get("riesgos_identificados") or []]
-    valores = [v for v in valores if v in ORDEN_CONFIANZA]
+    valores = _confianzas_de_riesgos(informe)
     if not valores:
         valores = [str((s or {}).get("confianza", "")).lower() for s in (resultados or {}).values()]
         valores = [v for v in valores if v in ORDEN_CONFIANZA]
@@ -502,7 +516,11 @@ def bloque_riesgo(informe: dict, confianza: str | None, meta: str, sin_dato: str
     etiquetas = "".join(f"<span>{n.replace('_', ' ')}</span>" for n in NIVELES)
     frase = primera_frase(informe.get("justificacion_riesgo")) or primera_frase(informe.get("resumen_ejecutivo"))
     resumen = informe.get("resumen_ejecutivo") or ""
-    meta_html = (f'<span class="va-conf">Confianza {esc(confianza)}</span>' if confianza else "") + \
+    # "estimada": la calcula la demo (ver confianza_global), no es un dato del modelo
+    ayuda = AYUDA_CONFIANZA if _confianzas_de_riesgos(informe) else AYUDA_CONFIANZA_AGENTES
+    meta_html = (f'<span class="va-conf" title="{esc(ayuda)}">Confianza estimada: {esc(confianza)}'
+                 f'<span class="va-ayuda" aria-hidden="true">?</span></span>'
+                 f'<span class="va-sr">{esc(ayuda)}</span>' if confianza else "") + \
         (f"<span>{esc(meta)}</span>" if meta else "")
     return (f'<div class="va-riesgo"><div class="nivel" style="background:{color}">'
             f'<div class="k">Nivel de riesgo</div><div class="v">{nivel_texto(nivel) or "SIN NIVEL"}</div>'
