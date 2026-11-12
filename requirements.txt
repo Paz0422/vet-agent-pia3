@@ -10,7 +10,7 @@ rapidfuzz
 openpyxl
 defusedxml
 tqdm
-streamlit
+streamlit>=1.50
 langchain-openai
 requests
 fastapi

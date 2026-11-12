@@ -41,13 +41,25 @@ Los 18 documentos del eje D que vienen de PDF ya están en `corpus/md/diagnostic
 
 ## Cómo usarlo
 
-**Demo web (Streamlit)** — formulario del caso, ejecución de los agentes y revisión humana en pantalla:
+**Demo web (Streamlit)** — tablero de vigilancia: se carga el caso, se ve a los agentes trabajar en vivo y un especialista firma el informe:
 
 ```
 streamlit run app_demo.py
 ```
 
-Se abre en <http://localhost:8501>.
+Se abre en <http://localhost:8501>. Con `USAR_SIMULACION=true` en el `.env` no usa el LLM (la búsqueda de evidencia sí es real); con `false` usa el modelo de LM Studio y el análisis puede tardar varios minutos.
+
+Qué hay en la pantalla:
+
+- **Panel izquierdo:** elegir un escenario de `corpus/escenarios/`, traer el clima de Open-Meteo y editar el caso por secciones. El botón **Analizar** lanza el grafo.
+- **Diagrama del grafo:** los nodos Climático → Diagnóstico → Bioseguridad → Moderador → Revisión humana se iluminan mientras trabajan (en espera / pensando / listo, con su tiempo). También se marcan la ronda de debate del moderador, el rechazo con comentario y el agente que falló.
+- **Pestaña Informe:** medidor del nivel de riesgo, resumen, tarjetas One Health (animal, humana, ambiental), mapa de la comuna (solo si hay internet), recomendaciones por prioridad y las citas como **notas al pie** que se abren y muestran el fragmento y la fuente. Una cita que no está en la evidencia recuperada queda marcada como posible invención del modelo.
+- **Pestaña Evidencia:** los fragmentos que recuperó cada agente, agrupados por documento, y la salida JSON de cada uno.
+- **Pestaña Comparar B1·B2·B3:** lee los `comparacion*.csv` de `resultados/` (formato viejo y nuevo de `evaluar.py`) y compara nivel de riesgo, tiempo, fuentes citadas, riesgos y recomendaciones.
+- **Pestaña JSON:** el borrador del informe tal como lo entregó el moderador.
+- **Barra de firma (fija abajo):** comentario + **Aprobar** / **Rechazar** (rechazar exige comentario). Después de aprobar, ahí aparece **Descargar informe (Markdown)**.
+
+Si el LLM falla, la demo explica el error y ofrece **Reintentar** desde el paso que falló. Mientras corre, todos los botones quedan desactivados. El tema (modo claro, acento verde azulado) está en `.streamlit/config.toml`; el HTML/CSS de la pantalla, en `vet_agent/vista_demo.py`.
 
 **Terminal** — corre el caso de ejemplo `CASO_H5N1` y pregunta por terminal si apruebas el informe (`s` o `n`):
 
@@ -92,11 +104,12 @@ Necesita `chroma_db` armada y LM Studio encendido (o `USAR_SIMULACION=true`). **
 
 ```
 vet-agent-pia3/
-├── app_demo.py            demo web (Streamlit): formulario, agentes y revisión humana
+├── app_demo.py            demo web (Streamlit): tablero del caso, agentes en vivo y revisión humana
 ├── vet_agent/             el sistema
 │   ├── grafo.py           flujo entre agentes (LangGraph) y pausa para la revisión humana
 │   ├── prompts.py         prompts de los agentes (versión v1, congelada)
 │   ├── main.py · api.py   uso por terminal y por API (FastAPI)
+│   ├── vista_demo.py      HTML/CSS de la demo: diagrama del grafo, medidor, tarjetas, comparación
 │   ├── evaluar.py         compara B1 (LLM sin RAG), B2 (un agente con RAG) y B3 (multiagente)
 │   ├── pruebas.py         pruebas automáticas
 │   ├── agentes/           climático, diagnóstico, bioseguridad, moderador y su base común
