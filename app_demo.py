@@ -1,33 +1,58 @@
-﻿"""Demo del sistema: la busqueda de evidencia (RAG) es real; la redaccion es simulada
-o la hace el modelo de LM Studio, segun USAR_SIMULACION en el .env.
+﻿"""Demo del sistema para un medico veterinario epidemiologo: ingresa su caso y recibe un
+informe de apoyo a la decision, que revisa y firma. La busqueda de evidencia (RAG) es real;
+la redaccion es simulada o la hace el modelo de LM Studio, segun USAR_SIMULACION en el .env.
 
 Uso (raiz del repo):
     streamlit run app_demo.py
+
+Pantalla:
+- arriba, el formulario del caso (se pliega cuando hay un analisis);
+- mientras se analiza, el diagrama del grafo con los agentes trabajando; al terminar queda
+  como una linea ("4 agentes · 31 s · sin rondas de debate") que se puede desplegar;
+- el informe, ordenado por lo que hay que decidir: nivel de riesgo, que hacer ahora,
+  riesgos One Health, lo que falta para decidir mejor y la evidencia;
+- abajo, fija, la barra de firma (aprobar / rechazar con comentario / descargar).
+El "Modo equipo" (barra lateral o DEMO_MODO_EQUIPO=true) agrega la comparacion B1·B2·B3,
+el JSON y las salidas de los agentes. Lo que se dibuja (HTML/CSS) esta en vet_agent/vista_demo.py.
 """
 import json
+import pathlib
 import time
 import uuid
 
 import openai
+import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
+from vet_agent import vista_demo as vista
 from vet_agent.api import listar_escenarios, obtener_escenario
-from vet_agent.config import USAR_SIMULACION, LLM_MODELO, LLM_URL, LLM_TIMEOUT
+from vet_agent.config import USAR_SIMULACION, LLM_MODELO, LLM_URL, LLM_TIMEOUT, DEMO_MODO_EQUIPO
 from vet_agent.datos import clima
 from vet_agent.grafo import construir_grafo, ESPECIALISTAS
 from vet_agent.main import CASO_H5N1
 
+st.set_page_config(page_title="VET·AGENT · Apoyo a la decisión", page_icon="🐔", layout="wide",
+                   initial_sidebar_state="collapsed")
+
 if USAR_SIMULACION:
+    MODO = "Redacción simulada"
     AVISO = "Redacción simulada (USAR_SIMULACION=true): no se usa el LLM. La recuperación de evidencia es real."
 else:
+    MODO = f"{LLM_MODELO} · LM Studio"
     AVISO = (f"Modelo en uso: {LLM_MODELO} (LM Studio). Con el modelo real el análisis "
              "puede tardar varios minutos. La recuperación de evidencia es real.")
 
-# nombre que se muestra para cada nodo del grafo mientras corre
-NOMBRE_NODO = {"climatico": "Climático", "diagnostico": "Diagnóstico", "bioseguridad": "Bioseguridad",
-               "moderador": "Moderador", "revision_humana": "Revisión humana"}
+# se muestra siempre, aunque el modelo no lo escriba en el informe
+AVISO_INFORME = ("Informe de apoyo a la decisión. Requiere validación de un médico veterinario "
+                 "y de la autoridad sanitaria competente.")
+PENDIENTE = "Se completa al conectar el LLM" if USAR_SIMULACION else "El modelo no completó esta sección"
+
+RESULTADOS = pathlib.Path(__file__).resolve().parent / "resultados"
+CAMPOS_CASO = list(CASO_H5N1)  # campos (y orden) del caso que reciben los agentes
+N_OBLIGATORIOS = sum(1 for c in CAMPOS_CASO if vista.CAMPOS.get(c, {}).get("obligatorio"))
 
 
 @st.cache_resource
@@ -62,98 +87,123 @@ def explicar_error(e: Exception) -> str:
     return "LM Studio devolvió un error."
 
 
-def correr(entrada, titulo: str) -> float | None:
-    """Corre el grafo mostrando que nodo va terminando, guarda el resultado en la sesion
-    y devuelve cuantos segundos tardo (None si fallo el LLM).
+def desplazar(destino_js: str):
+    """Mueve la vista de la pagina (el contenedor que hace scroll en Streamlit).
+
+    components.html corre en un iframe del mismo origen, asi que puede tocar la pagina de arriba.
+    Se dibuja al final de la pagina para no correr de lugar a los demas elementos.
+    """
+    components.html("<script>const d = window.parent.document;"
+                    "const m = d.querySelector('[data-testid=\"stMain\"]');"
+                    f"let n = 0; const t = setInterval(() => {{ n++; if (m) {{ {destino_js} }} if (n > 15) clearInterval(t); }}, 200);"
+                    "</script>", height=0)
+
+
+def svg(destino, contenido: str):
+    # st.html borra los <svg>; st.markdown con HTML los deja. El texto ya viene escapado (vista.esc)
+    destino.markdown(contenido, unsafe_allow_html=True)
+
+
+# ---------- diagrama del grafo en vivo ----------
+
+def vista_grafo() -> dict:
+    if "grafo_vista" not in st.session_state:
+        st.session_state.grafo_vista = vista.grafo_inicial()
+    return st.session_state.grafo_vista
+
+
+def correr(entrada, titulo: str, lienzo) -> float | None:
+    """Corre el grafo iluminando en `lienzo` el nodo que trabaja, guarda el resultado en la
+    sesion y devuelve cuantos segundos tardo (None si fallo el LLM).
 
     El resultado queda igual que el de grafo().invoke(): el estado completo y, si el grafo
     se detuvo a esperar la revision humana, la pausa en "__interrupt__".
     Si el LLM falla, el resultado anterior no se toca y el error queda en st.session_state.error:
     el grafo queda detenido en el paso que fallo y se puede reintentar con entrada None.
     """
-    inicio, lineas = time.perf_counter(), []
-    with st.status(titulo, expanded=True) as estado:
-        try:
-            for paso in grafo().stream(entrada, config(), stream_mode="updates"):
-                for nodo, cambios in paso.items():
-                    if nodo == "__interrupt__":
-                        continue
-                    # en las rondas de debate, los agentes no consultados no llaman al LLM ni devuelven cambios
-                    detalle = "" if cambios else " (no consultado en esta ronda)"
-                    lineas.append(f"✅ {NOMBRE_NODO.get(nodo, nodo)} terminó en "
-                                  f"{time.perf_counter() - inicio:.0f} s{detalle}")
-                    estado.write(lineas[-1])
-        except ERRORES_LLM as e:
-            segundos = time.perf_counter() - inicio
-            estado.update(label=f"{titulo} Falló a los {segundos:.0f} s", state="error", expanded=False)
-            st.session_state.error = {"mensaje": explicar_error(e), "detalle": f"{type(e).__name__}: {e}"}
-            st.session_state.avance = lineas
-            return None
+    v = vista_grafo()
+    nodos = v["nodos"]
+    inicio = ultimo = time.perf_counter()
+    lineas = []
+
+    # quien empieza: en un analisis nuevo, el climatico; al reanudar, el paso pendiente del grafo
+    if isinstance(entrada, dict):
+        primero = "climatico"
+    else:
+        pendientes = grafo().get_state(config()).next
+        primero = pendientes[0] if pendientes else None
+    if primero in nodos:
+        nodos[primero] = {"estado": "pensando", "segundos": None}
+    trabajando = primero
+
+    def dibujar(nota: str):
+        v["nota"] = nota
+        svg(lienzo, vista.diagrama_grafo(v))
+
+    dibujar(titulo)
+    try:
+        for paso in grafo().stream(entrada, config(), stream_mode="updates"):
+            for nodo, cambios in paso.items():
+                ahora = time.perf_counter()
+                if nodo == "__interrupt__":
+                    nodos["revision_humana"] = {"estado": "pausa", "segundos": None}
+                    trabajando = None
+                    continue
+                # en las rondas de debate, los agentes no consultados no llaman al LLM ni devuelven cambios
+                if nodo in ESPECIALISTAS and not cambios:
+                    nodos[nodo] = {"estado": "omitido", "segundos": None}
+                    detalle = " (no consultado en esta ronda)"
+                elif nodo == "revision_humana":
+                    aprobado = ((cambios or {}).get("decision_humana") or {}).get("aprobado")
+                    nodos[nodo] = {"estado": "aprobado" if aprobado else "listo", "segundos": None}
+                    v["rechazo"] = not aprobado
+                    if not aprobado:
+                        v["rechazos"] = v.get("rechazos", 0) + 1
+                    detalle = "" if aprobado else " (rechazado: el moderador revisa los comentarios)"
+                else:
+                    nodos[nodo] = {"estado": "listo", "segundos": ahora - ultimo}
+                    detalle = ""
+                if nodo == "moderador" and cambios:
+                    v["ronda"] = cambios.get("revisiones", v["ronda"])
+                ultimo = ahora
+                lineas.append(f"✅ {vista.NOMBRE_NODO.get(nodo, nodo)} terminó en {ahora - inicio:.0f} s{detalle}")
+
+                siguiente = vista.siguiente_nodo(nodo, cambios)
+                if nodo == "moderador" and siguiente == "climatico":
+                    # ronda de debate: la cadena se vuelve a recorrer
+                    v["debate"] = True
+                    v["debates"] = v.get("debates", 0) + 1
+                    for n in ESPECIALISTAS:
+                        nodos[n] = {"estado": "espera", "segundos": None}
+                if siguiente in nodos:
+                    nodos[siguiente] = {"estado": "pensando", "segundos": None}
+                trabajando = siguiente
+                quien = vista.NOMBRE_NODO.get(siguiente, "")
+                dibujar(f"{quien} está trabajando · {ahora - inicio:.0f} s transcurridos" if quien else titulo)
+    except ERRORES_LLM as e:
         segundos = time.perf_counter() - inicio
-        estado.update(label=f"{titulo} Listo en {segundos:.0f} s", state="complete", expanded=False)
+        if trabajando in nodos:
+            nodos[trabajando] = {"estado": "error", "segundos": None}
+        dibujar(f"Falló a los {segundos:.0f} s. Revisa el mensaje y usa Reintentar.")
+        st.session_state.error = {"mensaje": explicar_error(e), "detalle": f"{type(e).__name__}: {e}"}
+        st.session_state.avance = lineas
+        return None
+    segundos = time.perf_counter() - inicio
 
     foto = grafo().get_state(config())
     resultado = dict(foto.values)
     if foto.interrupts:
         resultado["__interrupt__"] = foto.interrupts
+        dibujar(f"Listo en {vista.duracion(segundos)}. El informe espera tu firma.")
+    else:
+        dibujar(f"Caso cerrado en {vista.duracion(segundos)}.")
     st.session_state.resultado = resultado
     st.session_state.error = None
     st.session_state.avance = lineas
     return segundos
 
 
-def etiqueta(campo: str) -> str:
-    return campo.replace("_", " ").capitalize()
-
-
-def _como_texto(valor) -> str:
-    # los campos numéricos se muestran como texto para poder editarlos
-    return "" if valor is None else str(valor)
-
-
-def formulario_caso() -> dict:
-    """Muestra el caso precargado (o el escenario elegido, ver cargar_escenario_en_formulario)
-    y devuelve lo que quedo escrito."""
-    caso = {}
-    for campo, valor in CASO_H5N1.items():
-        # con la clave en session_state, el selectbox de escenarios y el boton "Traer clima"
-        # pueden pre-llenar estos campos antes de que se vuelvan a dibujar
-        clave = f"caso_{campo}"
-        if isinstance(valor, list) and valor and isinstance(valor[0], dict):
-            # lista de objetos (ej: resultados_laboratorio): se edita como JSON
-            etiqueta_campo = etiqueta(campo) + " (JSON)"
-            if clave in st.session_state:
-                texto = st.text_area(etiqueta_campo, key=clave)
-            else:
-                texto = st.text_area(etiqueta_campo, json.dumps(valor, ensure_ascii=False, indent=2), key=clave)
-            try:
-                caso[campo] = json.loads(texto)
-            except json.JSONDecodeError:
-                caso[campo] = valor  # si lo rompen, se conserva el valor precargado
-        elif isinstance(valor, list):
-            etiqueta_campo = etiqueta(campo) + " (uno por línea)"
-            if clave in st.session_state:
-                texto = st.text_area(etiqueta_campo, key=clave)
-            else:
-                texto = st.text_area(etiqueta_campo, "\n".join(valor), key=clave)
-            caso[campo] = [linea.strip() for linea in texto.splitlines() if linea.strip()]
-        elif isinstance(valor, dict):
-            st.markdown(f"**{etiqueta(campo)}**")
-            columnas = st.columns(len(valor))
-            caso[campo] = {}
-            for col, (k, v) in zip(columnas, valor.items()):
-                subclave = f"{clave}_{k}"
-                if subclave in st.session_state:
-                    caso[campo][k] = col.text_input(etiqueta(k), key=subclave)
-                else:
-                    caso[campo][k] = col.text_input(etiqueta(k), _como_texto(v), key=subclave)
-        else:
-            if clave in st.session_state:
-                caso[campo] = st.text_input(etiqueta(campo), key=clave)
-            else:
-                caso[campo] = st.text_input(etiqueta(campo), _como_texto(valor), key=clave)
-    return caso
-
+# ---------- formulario del caso ----------
 
 ESCENARIO_EJEMPLO = "Caso de ejemplo (H5N1)"
 
@@ -162,174 +212,308 @@ def opciones_escenarios() -> list[str]:
     return [ESCENARIO_EJEMPLO] + listar_escenarios()
 
 
-def cargar_escenario_en_formulario(datos: dict):
-    """Pone la Parte A de un escenario en session_state para que formulario_caso() la muestre.
-
-    Usa CASO_H5N1 como plantilla de los campos que existen: lo que falte en el escenario
-    elegido queda vacio, para no dejar pegado algo del escenario anterior.
-    """
-    for campo, plantilla in CASO_H5N1.items():
-        valor = datos.get(campo)
-        clave = f"caso_{campo}"
-        if isinstance(plantilla, list) and plantilla and isinstance(plantilla[0], dict):
-            st.session_state[clave] = json.dumps(valor or [], ensure_ascii=False, indent=2)
-        elif isinstance(plantilla, list):
-            st.session_state[clave] = "\n".join(valor or [])
-        elif isinstance(plantilla, dict):
-            for k in plantilla:
-                st.session_state[f"{clave}_{k}"] = _como_texto((valor or {}).get(k))
-        else:
-            st.session_state[clave] = _como_texto(valor)
+def campo(nombre: str, corriendo: bool):
+    """Un campo del caso, con su etiqueta (unidad, * si es obligatorio) y un ejemplo de guia."""
+    spec = vista.CAMPOS.get(nombre, {"etiqueta": nombre.replace("_", " ").capitalize(), "tipo": "texto", "ejemplo": ""})
+    clave, etiqueta = f"caso_{nombre}", vista.etiqueta_campo(spec)
+    ejemplo = f"ej: {spec['ejemplo']}" if spec.get("ejemplo") else ""
+    if spec["tipo"] in ("lineas", "laboratorio"):
+        st.text_area(etiqueta, key=clave, placeholder=ejemplo, height=118, disabled=corriendo)
+    elif spec["tipo"] == "parrafo":
+        st.text_area(etiqueta, key=clave, placeholder=ejemplo, height=76, disabled=corriendo)
+    else:
+        st.text_input(etiqueta, key=clave, placeholder=ejemplo, disabled=corriendo)
 
 
-def cita(e: dict) -> str:
-    return f"[{e['doc_id']}] {e['institucion']} {e['anio']} — {e['titulo']}"
+def formulario_caso(corriendo: bool):
+    """El caso que ingresa el veterinario. Los valores quedan en session_state (caso_<campo>)
+    y vista.leer_caso() los convierte en el caso que reciben los agentes."""
+    titulo_col, ejemplo_col = st.columns([3, 1], vertical_alignment="bottom")
+    titulo_col.html(vista.h2("Caso a analizar", "* obligatorio · si un dato no se conoce, déjalo vacío: "
+                                                "el informe lo marcará como información faltante"))
+    with ejemplo_col.popover("Cargar caso de ejemplo", icon=":material/folder_open:", width="stretch",
+                             disabled=corriendo):
+        st.selectbox("Caso de ejemplo", opciones_escenarios(), index=None, placeholder="Elige un caso…",
+                     key="escenario_elegido", on_change=pedir_escenario)
+        st.button("Vaciar formulario", icon=":material/delete_sweep:", on_click=pedir_formulario_vacio, width="stretch")
+
+    st.html(vista.h3("1 · Plantel y ubicación"))
+    izquierda, centro, mapa_col = st.columns([1, 1, 0.8])
+    with izquierda:
+        for nombre in ("especie", "sistema_productivo", "n_animales"):
+            campo(nombre, corriendo)
+    with centro:
+        for nombre in ("region", "comuna", "fecha_evento"):
+            campo(nombre, corriendo)
+    with mapa_col:
+        mapa(st.session_state.get("caso_comuna") or st.session_state.get("caso_region") or "")
+
+    st.html(vista.h3("2 · Cuadro clínico"))
+    izquierda, derecha = st.columns(2)
+    with izquierda:
+        campo("signos_clinicos", corriendo)
+    with derecha:
+        mort, morb = st.columns(2)
+        with mort:
+            campo("mortalidad_pct", corriendo)
+        with morb:
+            campo("morbilidad_pct", corriendo)
+        campo("indicadores_productivos", corriendo)
+
+    st.html(vista.h3("3 · Laboratorio y clima"))
+    izquierda, derecha = st.columns(2)
+    with izquierda:
+        campo("resultados_laboratorio", corriendo)
+    with derecha:
+        for col, (sub, spec) in zip(st.columns(3), vista.CLIMA.items()):
+            col.text_input(vista.etiqueta_campo(spec), key=f"caso_clima_{sub}", placeholder=f"ej: {spec['ejemplo']}",
+                           disabled=corriendo)
+        lugar_col, fecha_col, boton_col = st.columns([1.1, 1, 0.9], vertical_alignment="bottom")
+        lugar_col.text_input("Lugar del clima", key="lugar_clima", placeholder="la comuna del caso",
+                             disabled=corriendo)
+        fecha_col.text_input("Fecha del clima (AAAA-MM-DD)", key="fecha_clima", placeholder="la fecha del evento",
+                             disabled=corriendo)
+        boton_col.button("Traer clima", icon=":material/cloud_download:", on_click=pedir_clima, disabled=corriendo,
+                         width="stretch", help="Completa temperatura, humedad y precipitación desde Open-Meteo")
+        if st.session_state.get("clima_error"):
+            st.warning("No se pudo obtener el clima de Open-Meteo: revisa el lugar, la fecha o la conexión a internet.")
+
+    st.html(vista.h3("4 · Entorno"))
+    for col, nombre in zip(st.columns(3), ("aves_silvestres_cercanas", "historial_brotes_zona", "movimientos_animales")):
+        with col:
+            campo(nombre, corriendo)
+    otros = [c for c in CAMPOS_CASO if c not in vista.CAMPOS and c != "clima"]
+    for nombre in otros:
+        campo(nombre, corriendo)
+
+    # mientras se llena el caso, Analizar va en una barra fija abajo (siempre a la vista) que dice
+    # que obligatorios faltan. Con el formulario plegado arriba del informe va al final, sin fijar,
+    # para no taparse con la barra de firma.
+    barra = st.container() if st.session_state.get("plegar_formulario") else st.container(key="barra_analizar")
+    with barra:
+        texto_col, boton_col = st.columns([4, 1], vertical_alignment="center")
+        pendientes = vista.obligatorios_pendientes(st.session_state, CAMPOS_CASO)
+        texto_col.html(vista.estado_obligatorios(pendientes, N_OBLIGATORIOS))
+        boton_col.button("Analizar", type="primary", icon=":material/play_arrow:", disabled=corriendo,
+                         on_click=pedir_analisis, width="stretch")
+        errores_caso = st.session_state.get("errores_caso")
+        if errores_caso:
+            st.warning("Revisa el caso antes de analizar:\n\n" + "\n".join(f"- {e}" for e in errores_caso))
 
 
-def mostrar_evidencia(resultados: dict):
-    st.subheader("Evidencia recuperada por cada agente")
+def resumen_caso(caso: dict) -> str:
+    animales = caso.get("n_animales")
+    partes = [caso.get("especie"), caso.get("comuna") or caso.get("region"), caso.get("fecha_evento"),
+              f"{animales:,} animales".replace(",", " ") if isinstance(animales, int) else None]
+    return " · ".join(str(p) for p in partes if p)
+
+
+# ---------- mapa de la comuna ----------
+
+@st.cache_data(ttl=600, show_spinner=False)
+def coordenadas(lugar: str):
+    # sin internet devuelve None y no hay mapa; se vuelve a intentar a los 10 minutos
+    return clima.ubicar(lugar)
+
+
+def mapa(lugar: str):
+    """Mapa chico de la comuna. Sin internet (o sin comuna) no se dibuja nada."""
+    punto = coordenadas(lugar.strip()) if lugar and lugar.strip() else None
+    if punto is None:
+        st.caption("📍 Con la comuna escrita y conexión a internet, aquí aparece el mapa de la zona.")
+        return
+    st.map(pd.DataFrame({"lat": [punto[0]], "lon": [punto[1]]}), zoom=8, size=3000,
+           color="#0f766e99", height=205)
+    st.caption(f"📍 {lugar}")
+
+
+# ---------- informe ----------
+
+def notas_al_pie(numeros: dict[str, int], indice: dict[str, dict]):
+    """Cada cita del informe como nota numerada que se abre y muestra el fragmento y la fuente."""
+    st.html(vista.h3("Notas al pie · abre una para ver el fragmento citado"))
+    if not numeros:
+        st.caption("El informe no cita fuentes.")
+        return
+    with st.container(horizontal=True):
+        for doc_id, n in numeros.items():
+            doc = indice.get(doc_id)
+            with st.popover(f"{n} · {doc_id}"):
+                if doc is None:
+                    st.markdown(f"**{doc_id}**")
+                    st.caption("⚠ Esta fuente no aparece en la evidencia que recuperaron los agentes: "
+                               "puede ser una cita inventada por el modelo.")
+                    continue
+                st.markdown(f"**{doc['titulo'] or doc_id}**")
+                st.caption(f"{doc_id} · {doc['institucion']} {doc['anio']}".strip())
+                for f in doc["fragmentos"]:
+                    st.caption(f"Recuperado por {vista.NOMBRE_NODO.get(f['agente'], f['agente'])}"
+                               + (f" · fragmento {f['chunk']}" if f["chunk"] != "" else ""))
+                    with st.container(border=True, height=220):
+                        st.markdown(f["texto"])
+
+
+def evidencia_por_agente(resultados: dict):
     for agente in ESPECIALISTAS:
         salida = resultados.get(agente, {})
-        evidencia = salida.get("evidencia", [])
-        with st.expander(f"{etiqueta(agente)}: {len(evidencia)} fragmentos"):
-            if not evidencia:
-                st.info("Sin evidencia: no se pudo buscar en la colección de este agente.")
-            for i, e in enumerate(evidencia, 1):
-                st.markdown(f"**{i}. {cita(e)}**")
-                with st.container(border=True):
-                    st.markdown(e["texto"])
-            st.caption("Salida del agente (redacción simulada, con los doc_id reales en «fuentes»):"
-                       if USAR_SIMULACION else f"Salida del agente (redactada por {LLM_MODELO}):")
-            st.json({k: v for k, v in salida.items() if k != "evidencia"}, expanded=False)
-
-
-PENDIENTE = "Se completa al conectar el LLM" if USAR_SIMULACION else "El modelo no completó esta sección"
-COLOR_RIESGO = {"bajo": "green", "moderado": "orange", "alto": "red", "muy_alto": "red"}
-
-
-def seccion(titulo: str, contenido) -> bool:
-    """Titulo de la seccion; si no hay contenido, el aviso de pendiente. Devuelve si hay algo que mostrar."""
-    st.markdown(f"#### {titulo}")
-    if contenido in (None, "", [], {}):
-        st.caption(PENDIENTE)
-        return False
-    return True
-
-
-def citas(ids) -> str:
-    return " ".join(f"`{i}`" for i in ids or [])
-
-
-def lista(items, formato):
-    # el LLM real podria devolver textos sueltos en vez de diccionarios: se muestran tal cual
-    for item in items:
-        st.markdown("- " + (formato(item) if isinstance(item, dict) else str(item)))
+        documentos = vista.indice_evidencia({agente: salida})
+        st.html(vista.h3(f"{vista.ICONO_NODO[agente]} {vista.NOMBRE_NODO[agente]} · "
+                         f"{len(salida.get('evidencia', []))} fragmentos") + vista.resumen_agente(agente, salida))
+        if not documentos:
+            st.caption("Sin evidencia: no se pudo buscar en la colección de este agente.")
+            continue
+        # un chip por documento: si el agente trajo varios fragmentos del mismo, van juntos adentro
+        with st.container(horizontal=True):
+            for doc_id, doc in documentos.items():
+                n = len(doc["fragmentos"])
+                with st.popover(f"{doc_id} · {doc['institucion']} {doc['anio']}".strip()
+                                + (f" · {n} fragmentos" if n > 1 else "")):
+                    st.markdown(f"**{doc['titulo'] or doc_id}**")
+                    st.caption(f"{doc_id} · {doc['institucion']} {doc['anio']}")
+                    for f in doc["fragmentos"]:
+                        if f["chunk"] != "":
+                            st.caption(f"Fragmento {f['chunk']}")
+                        with st.container(border=True, height=220):
+                            st.markdown(f["texto"])
 
 
 def mostrar_informe(resultado: dict, pausa: dict | None):
-    st.subheader("Borrador del informe")
-    tiempos = []
-    if st.session_state.get("segundos_analisis") is not None:
-        tiempos.append(f"el análisis tardó {st.session_state.segundos_analisis:.0f} s")
-    if st.session_state.get("segundos_revision") is not None:
-        tiempos.append(f"la última revisión del moderador, {st.session_state.segundos_revision:.0f} s")
-    if tiempos:
-        st.caption("⏱️ " + "; ".join(tiempos).capitalize())
     informe = (pausa or {}).get("informe") or resultado.get("evaluacion", {}).get("informe", {})
+    resultados = resultado.get("resultados", {})
+    numeros = vista.numerar_citas(informe)
+    indice = vista.indice_evidencia(resultados)
 
-    if seccion("Resumen", informe.get("resumen_ejecutivo")):
-        st.write(informe["resumen_ejecutivo"])
+    # 1. nivel de riesgo, por que y confianza
+    base = f"basado en {len(indice)} documentos recuperados" if indice else "sin documentos recuperados"
+    st.html(vista.bloque_riesgo(informe, vista.confianza_global(informe, resultados), base, PENDIENTE)
+            + vista.aviso(informe.get("aviso") or AVISO_INFORME))
 
-    nivel = informe.get("nivel_riesgo_global")
-    if seccion("Nivel de riesgo", nivel):
-        color = COLOR_RIESGO.get(nivel, "gray")
-        st.markdown(f":{color}-badge[{nivel.replace('_', ' ').upper()}]")
-        if informe.get("justificacion_riesgo"):
-            st.write(informe["justificacion_riesgo"])
-    st.caption(f"Revisiones del moderador: {resultado.get('revisiones', 0)}")
+    # 2. que hacer ahora
+    recomendaciones = informe.get("recomendaciones") or []
+    grupos = vista.recomendaciones_por_prioridad(recomendaciones)
+    sin_inmediatas = "El informe no marca acciones de prioridad inmediata." if recomendaciones else PENDIENTE
+    despues = [("Corto plazo", vista.items_recomendacion(grupos["corto_plazo"], numeros), "Sin acciones de corto plazo."),
+               ("Preventivas", vista.items_recomendacion(grupos["preventiva"], numeros), "Sin acciones preventivas."),
+               ("Protocolos de bioseguridad", [vista.esc(p) for p in informe.get("protocolos_bioseguridad") or []],
+                PENDIENTE)]
+    if grupos["otra"]:
+        despues.append(("Sin prioridad indicada", vista.items_recomendacion(grupos["otra"], numeros), ""))
+    st.html(vista.h2("Qué hacer ahora", "acciones de prioridad inmediata")
+            + vista.bloque_notificacion(vista.notificacion(resultados))
+            + vista.acciones_inmediatas(grupos["inmediata"], numeros, sin_inmediatas)
+            + '<div style="height:.6rem"></div>' + vista.columnas(despues))
 
-    if seccion("Riesgos", informe.get("riesgos_identificados")):
-        lista(informe["riesgos_identificados"], lambda r: (
-            f"**{r.get('riesgo', '')}** · {r.get('dimension_one_health', '')} · "
-            f"confianza {r.get('confianza', '')} {citas(r.get('evidencia'))}"))
+    # 3. riesgos por dimension
+    st.html(vista.h2("Riesgos por dimensión One Health")
+            + vista.riesgos_one_health(informe.get("riesgos_identificados") or [], numeros))
 
-    if seccion("Recomendaciones", informe.get("recomendaciones")):
-        lista(informe["recomendaciones"], lambda r: (
-            f"**{r.get('accion', '')}** · {r.get('prioridad', '').replace('_', ' ')}"
-            + (f" · responsable: {r['responsable_sugerido']}" if r.get("responsable_sugerido") else "")
-            + (" · requiere autoridad sanitaria" if r.get("requiere_autoridad") else "")
-            + f" {citas(r.get('fuentes'))}"))
-
-    if seccion("Protocolos", informe.get("protocolos_bioseguridad")):
-        lista(informe["protocolos_bioseguridad"], str)
-
-    if seccion("Incertidumbres", informe.get("incertidumbres_y_limitaciones")):
-        lista(informe["incertidumbres_y_limitaciones"], str)
-
-    if seccion("Aviso", informe.get("aviso")):
-        st.info(informe["aviso"])
-
-    with st.expander("Ver JSON"):
-        st.json(informe)
-
+    # 4. lo que falta para decidir mejor
+    st.html(vista.h2("Para decidir mejor", "lo que falta o no es seguro") + vista.para_decidir_mejor(informe, PENDIENTE))
     if pausa and pausa.get("preguntas_pendientes"):
-        st.warning("Preguntas que el moderador dejó sin resolver:")
-        for p in pausa["preguntas_pendientes"]:
-            st.markdown(f"- **{p.get('agente_destino')}**: {p.get('pregunta')}")
+        st.warning("Preguntas que el moderador dejó sin resolver:\n\n" + "\n".join(
+            f"- **{p.get('agente_destino')}**: {p.get('pregunta')}" for p in pausa["preguntas_pendientes"]))
 
-    st.subheader("Fuentes utilizadas")
-    titulos = {e["doc_id"]: e["titulo"] for s in resultado.get("resultados", {}).values()
-               for e in s.get("evidencia", [])}
-    fuentes = informe.get("fuentes_utilizadas", [])
-    if fuentes:
-        st.dataframe([f | {"titulo": titulos.get(f["doc_id"], "")} for f in fuentes],
-                     hide_index=True, width="stretch")
-    else:
-        st.info("El informe no cita fuentes.")
+    # 5. evidencia y citas
+    with st.expander(f"Evidencia y citas · {len(indice)} documentos · {len(numeros)} citados en el informe",
+                     icon=":material/menu_book:"):
+        notas_al_pie(numeros, indice)
+        evidencia_por_agente(resultados)
+
+
+# ---------- modo equipo ----------
+
+def mostrar_comparacion(corriendo: bool):
+    archivos = vista.archivos_comparacion(RESULTADOS)
+    if not archivos:
+        st.info("No hay corridas en resultados/. Genera una con `python -m vet_agent.evaluar`.")
+        return
+    st.caption("Corridas guardadas por `python -m vet_agent.evaluar`: el mismo caso con un solo LLM (B1), "
+               "un agente con RAG (B2) y el sistema multiagente (B3).")
+    elegir_col, caso_col = st.columns(2)
+    nombre = elegir_col.selectbox("Corrida", list(archivos), key="corrida_comparar", disabled=corriendo)
+    filas = vista.leer_comparacion(archivos[nombre])
+    casos = list(dict.fromkeys((f["escenario"], f["repeticion"]) for f in filas))
+    if not casos:
+        st.info("El archivo no tiene filas.")
+        return
+    caso = caso_col.selectbox("Caso", casos, key="caso_comparar", disabled=corriendo or len(casos) == 1,
+                              format_func=lambda c: f"{c[0]} · repetición {c[1]}")
+    elegidas = {f["version"]: f for f in filas if (f["escenario"], f["repeticion"]) == caso}
+    for col, version in zip(st.columns(3), vista.VERSIONES):
+        col.html(vista.tarjeta_version(version, elegidas.get(version)))
+    tiempos = pd.DataFrame({"versión": [f"{v} · {vista.VERSIONES[v]}" for v in vista.VERSIONES if v in elegidas],
+                            "minutos": [round(elegidas[v]["segundos"] / 60, 1) for v in vista.VERSIONES if v in elegidas]})
+    st.html(vista.h3("Tiempo de cada versión (minutos)"))
+    st.bar_chart(tiempos, x="versión", y="minutos", color=vista.ACENTO, horizontal=True, height=170)
+
+
+def modo_equipo(resultado: dict | None, pausa: dict | None, corriendo: bool):
+    st.html(vista.h2("Modo equipo", "para el equipo del proyecto: comparación, JSON y salidas de los agentes"))
+    comparar, informe_json, agentes = st.tabs(["Comparar B1·B2·B3", "JSON del informe", "Salidas de los agentes"])
+    with comparar:
+        mostrar_comparacion(corriendo)
+    with informe_json:
+        if resultado:
+            st.json((pausa or {}).get("informe") or resultado.get("evaluacion", {}).get("informe", {}))
+        else:
+            st.caption("El JSON del informe aparece después del análisis.")
+    with agentes:
+        resultados = (resultado or {}).get("resultados", {})
+        if not resultados:
+            st.caption("Las salidas aparecen después del análisis.")
+        for agente in ESPECIALISTAS:
+            if agente in resultados:
+                st.caption(f"{vista.NOMBRE_NODO[agente]} · " + ("redacción simulada, con los doc_id reales en «fuentes»"
+                                                                 if USAR_SIMULACION else f"redactada por {LLM_MODELO}"))
+                st.json({k: v for k, v in resultados[agente].items() if k != "evidencia"}, expanded=False)
 
 
 def informe_a_markdown(informe: dict, resultado: dict) -> str:
-    """Arma en Markdown el mismo informe que se ve en pantalla, para el boton de descarga."""
+    """Arma en Markdown el informe, en el mismo orden que la pantalla, para el boton de descarga."""
     lineas = ["# Informe epidemiológico", ""]
-    if informe.get("resumen_ejecutivo"):
-        lineas += ["## Resumen", "", informe["resumen_ejecutivo"], ""]
-
     nivel = informe.get("nivel_riesgo_global")
     if nivel:
-        lineas.append(f"## Nivel de riesgo: {nivel.replace('_', ' ').upper()}")
-        lineas.append("")
+        lineas += [f"## Nivel de riesgo: {nivel.replace('_', ' ').upper()}", ""]
         if informe.get("justificacion_riesgo"):
             lineas += [informe["justificacion_riesgo"], ""]
+    if informe.get("resumen_ejecutivo"):
+        lineas += ["## Resumen", "", informe["resumen_ejecutivo"], ""]
+    lineas += [f"> {informe.get('aviso') or AVISO_INFORME}", ""]
+
+    noti = vista.notificacion(resultado.get("resultados", {}))
+    if noti["estado"]:
+        quien = ", ".join(noti["autoridades"]) or "la autoridad competente"
+        lineas += [f"**Notificación obligatoria:** {noti['estado'].replace('_', ' ')} ({quien})", ""]
+
+    grupos = vista.recomendaciones_por_prioridad(informe.get("recomendaciones"))
+    for titulo, clave in (("Qué hacer ahora", "inmediata"), ("Corto plazo", "corto_plazo"),
+                          ("Preventivas", "preventiva"), ("Sin prioridad indicada", "otra")):
+        if grupos[clave]:
+            lineas.append(f"## {titulo}")
+            for r in grupos[clave]:
+                lineas.append(
+                    f"- **{r.get('accion', '')}**"
+                    + (f" · responsable: {r['responsable_sugerido']}" if r.get("responsable_sugerido") else "")
+                    + (" · requiere autoridad sanitaria" if r.get("requiere_autoridad") else "")
+                    + f" {citas(r.get('fuentes'))}")
+            lineas.append("")
+
+    if informe.get("protocolos_bioseguridad"):
+        lineas += ["## Protocolos de bioseguridad"] + [f"- {p}" for p in informe["protocolos_bioseguridad"]] + [""]
 
     if informe.get("riesgos_identificados"):
         lineas.append("## Riesgos")
         for r in informe["riesgos_identificados"]:
+            r = vista.como_dict(r, "riesgo")
             lineas.append(f"- **{r.get('riesgo', '')}** · {r.get('dimension_one_health', '')} · "
                           f"confianza {r.get('confianza', '')} {citas(r.get('evidencia'))}")
         lineas.append("")
 
-    if informe.get("recomendaciones"):
-        lineas.append("## Recomendaciones")
-        for r in informe["recomendaciones"]:
-            lineas.append(
-                f"- **{r.get('accion', '')}** · {r.get('prioridad', '').replace('_', ' ')}"
-                + (f" · responsable: {r['responsable_sugerido']}" if r.get("responsable_sugerido") else "")
-                + (" · requiere autoridad sanitaria" if r.get("requiere_autoridad") else "")
-                + f" {citas(r.get('fuentes'))}")
-        lineas.append("")
-
-    if informe.get("protocolos_bioseguridad"):
-        lineas.append("## Protocolos")
-        lineas += [f"- {p}" for p in informe["protocolos_bioseguridad"]]
-        lineas.append("")
-
-    if informe.get("incertidumbres_y_limitaciones"):
-        lineas.append("## Incertidumbres")
-        lineas += [f"- {i}" for i in informe["incertidumbres_y_limitaciones"]]
-        lineas.append("")
-
-    if informe.get("aviso"):
-        lineas += ["## Aviso", "", informe["aviso"], ""]
+    for titulo, clave in (("Falta información", "informacion_faltante"),
+                          ("Diagnósticos a descartar", "hipotesis_alternativas"),
+                          ("Incertidumbres", "incertidumbres_y_limitaciones")):
+        if informe.get(clave):
+            lineas += [f"## {titulo}"] + [f"- {i}" for i in informe[clave]] + [""]
 
     fuentes = informe.get("fuentes_utilizadas", [])
     if fuentes:
@@ -337,20 +521,33 @@ def informe_a_markdown(informe: dict, resultado: dict) -> str:
                    for e in s.get("evidencia", [])}
         lineas.append("## Fuentes utilizadas")
         for f in fuentes:
-            titulo = titulos.get(f["doc_id"], "")
-            lineas.append(f"- `{f['doc_id']}`" + (f" — {titulo}" if titulo else ""))
-
+            f = vista.como_dict(f, "doc_id")
+            titulo = titulos.get(f.get("doc_id"), "")
+            lineas.append(f"- `{f.get('doc_id')}`" + (f" — {titulo}" if titulo else ""))
     return "\n".join(lineas)
 
 
+def citas(ids) -> str:
+    return " ".join(f"`{i}`" for i in ids or [])
+
+
+# ---------- botones ----------
 # Los botones solo dejan anotado el pedido (on_click corre antes de redibujar la pagina):
 # asi, mientras el grafo corre, todos los botones ya se dibujan desactivados y no se
 # pueden lanzar dos peticiones al LLM a la vez. El pedido se ejecuta al final del script.
 
 def pedir_analisis():
+    caso, errores = vista.leer_caso(st.session_state, CAMPOS_CASO)
+    if errores:
+        # sin los datos minimos no se corre el grafo: se muestra que falta
+        st.session_state.errores_caso = errores
+        return
+    st.session_state.errores_caso = None
+    st.session_state.caso_a_analizar = caso
     st.session_state.thread_id = str(uuid.uuid4())
     st.session_state.resultado = None
     st.session_state.error = None
+    st.session_state.grafo_vista = vista.grafo_inicial()
     st.session_state.pedido = "analizar"
 
 
@@ -373,13 +570,26 @@ def pedir_reintento():
 
 
 def pedir_clima():
-    resultado = clima.traer_clima(st.session_state.get("lugar_clima", ""), st.session_state.get("fecha_clima", ""))
+    # si no se escribio otro lugar/fecha para el clima, se usan los del caso
+    lugar = (st.session_state.get("lugar_clima") or st.session_state.get("caso_comuna")
+             or st.session_state.get("caso_region") or "")
+    fecha = st.session_state.get("fecha_clima") or st.session_state.get("caso_fecha_evento") or ""
+    resultado = clima.traer_clima(lugar.strip(), fecha.strip())
     st.session_state.clima_error = resultado is None
     if resultado:
-        # traer_clima() devuelve las mismas claves que CASO_H5N1["clima"], asi que
-        # calzan con las que usa formulario_caso() para precargar el campo (caso_clima_<clave>)
+        # traer_clima() devuelve las mismas claves que CASO_H5N1["clima"] (caso_clima_<clave>)
         for k, v in resultado.items():
             st.session_state[f"caso_clima_{k}"] = str(v)
+
+
+def cargar_en_formulario(datos: dict):
+    st.session_state.update(vista.caso_a_formulario(datos, CAMPOS_CASO))
+    # el lugar/fecha del boton "Traer clima" tambien se actualizan: si no, quedarian
+    # apuntando al caso anterior y "Traer clima" traeria el clima de otro lugar/fecha
+    st.session_state["lugar_clima"] = datos.get("comuna") or datos.get("region") or ""
+    st.session_state["fecha_clima"] = datos.get("fecha_evento") or ""
+    st.session_state.errores_caso = None
+    st.session_state.clima_error = False
 
 
 def pedir_escenario():
@@ -387,110 +597,141 @@ def pedir_escenario():
     if not id_escenario:
         return
     # el caso de ejemplo tambien se carga: si no, quedarian los datos del escenario anterior
-    datos = CASO_H5N1 if id_escenario == ESCENARIO_EJEMPLO else obtener_escenario(id_escenario)
-    cargar_escenario_en_formulario(datos)
-    # el lugar/fecha del boton "Traer clima" tambien se actualizan: si no, quedarian
-    # apuntando al caso anterior y "Traer clima" traeria el clima de otro lugar/fecha
-    st.session_state["lugar_clima"] = datos.get("comuna") or datos.get("region") or ""
-    st.session_state["fecha_clima"] = datos.get("fecha_evento") or ""
+    cargar_en_formulario(CASO_H5N1 if id_escenario == ESCENARIO_EJEMPLO else obtener_escenario(id_escenario))
 
 
-def revision(corriendo: bool):
-    st.subheader("Revisión humana")
-    st.text_area("Comentarios para el moderador (obligatorio si rechazas)", key="comentarios", disabled=corriendo)
-    aprobar, rechazar = st.columns(2)
-    aprobar.button("Aprobar", type="primary", width="stretch", disabled=corriendo, on_click=pedir_aprobacion)
-    rechazar.button("Rechazar", width="stretch", disabled=corriendo, on_click=pedir_rechazo)
-    if st.session_state.pop("falta_comentario", False):
-        st.warning("Escribe un comentario para que el moderador sepa qué corregir.")
+def pedir_formulario_vacio():
+    cargar_en_formulario({})
+    st.session_state.escenario_elegido = None
 
 
-def ejecutar(pedido, caso: dict):
+def barra_firma(resultado: dict, pausa: dict | None, corriendo: bool):
+    """Barra fija abajo: firmar (aprobar/rechazar) el borrador o descargar el informe aprobado."""
+    with st.container(key="firma"):
+        if pausa:
+            texto_col, aprobar_col, rechazar_col = st.columns([4, 1, 1], vertical_alignment="bottom")
+            with texto_col:
+                st.html('<div class="va-firma-t">✍ Revisión del médico veterinario</div>')
+                st.text_area("Comentarios para el moderador (obligatorio si rechazas)", key="comentarios",
+                             disabled=corriendo, height=68)
+            aprobar_col.button("Aprobar", type="primary", icon=":material/check:", width="stretch",
+                               disabled=corriendo, on_click=pedir_aprobacion)
+            rechazar_col.button("Rechazar", icon=":material/undo:", width="stretch", disabled=corriendo,
+                                on_click=pedir_rechazo)
+            if st.session_state.pop("falta_comentario", False):
+                st.warning("Escribe un comentario para que el moderador sepa qué corregir.")
+        else:
+            aviso_col, descarga_col = st.columns([3, 1], vertical_alignment="center")
+            aviso_col.success("Informe aprobado por el revisor.", icon=":material/verified:")
+            informe = resultado.get("evaluacion", {}).get("informe", {})
+            id_escenario = st.session_state.get("escenario_elegido")
+            nombre = f"informe_{id_escenario}.md" if id_escenario and id_escenario != ESCENARIO_EJEMPLO else "informe.md"
+            descarga_col.download_button("Descargar informe (Markdown)", informe_a_markdown(informe, resultado),
+                                         file_name=nombre, mime="text/markdown", icon=":material/download:",
+                                         type="primary", width="stretch")
+
+
+def ejecutar(pedido, lienzo):
     if pedido == "analizar":
-        estado = {"caso": caso, "resultados": {}, "solicitudes": {}, "revisiones": 0, "decision_humana": {}}
+        estado = {"caso": st.session_state.caso_a_analizar, "resultados": {}, "solicitudes": {}, "revisiones": 0,
+                  "decision_humana": {}}
         segundos = correr(estado, "Buscando evidencia y corriendo los agentes "
-                                  "(la primera vez carga el modelo de embeddings)...")
+                                  "(la primera vez carga el modelo de embeddings)…", lienzo)
         st.session_state.segundos_analisis = segundos
         st.session_state.segundos_revision = None
+        # desde ahora el formulario va plegado arriba del informe, y la pagina sube al inicio
+        # para que lo primero que se vea sea el nivel de riesgo
+        st.session_state.plegar_formulario = True
+        st.session_state.subir = True
     elif pedido == "reintentar":
         # entrada None = seguir desde el ultimo paso guardado, el que fallo
         analizando = st.session_state.get("resultado") is None
-        segundos = correr(None, "Reintentando desde el paso que falló...")
+        segundos = correr(None, "Reintentando desde el paso que falló…", lienzo)
         if segundos is not None:
             clave = "segundos_analisis" if analizando else "segundos_revision"
             st.session_state[clave] = segundos
     else:
         # Command(resume=...) le entrega la decision al grafo y sigue desde la pausa
-        titulo = "Cerrando el caso..." if pedido["aprobado"] else "El moderador revisa el informe con tus comentarios..."
-        segundos = correr(Command(resume=pedido), titulo)
+        titulo = "Cerrando el caso…" if pedido["aprobado"] else "El moderador revisa el informe con tus comentarios…"
+        segundos = correr(Command(resume=pedido), titulo, lienzo)
         # al aprobar solo se cierra el caso: el tiempo que importa es el de un rechazo
         if segundos is not None and not pedido["aprobado"]:
             st.session_state.segundos_revision = segundos
 
 
-st.set_page_config(page_title="Demo vet-agent", page_icon="🐔", layout="wide")
-st.title("Análisis epidemiológico: influenza aviar H5N1")
-st.warning(AVISO, icon="⚠️")
+# ---------- pagina ----------
+
+st.html(vista.CSS)
 
 pedido = st.session_state.get("pedido")
 corriendo = pedido is not None
-
-st.selectbox("Escenario", opciones_escenarios(), key="escenario_elegido",
-             on_change=pedir_escenario, disabled=corriendo)
-
-lugar_col, fecha_col, boton_col = st.columns([2, 2, 1])
-# primer dibujo: se precarga con la comuna/region y la fecha del caso; despues manda lo que escriba la persona
-lugar_defecto = CASO_H5N1.get("comuna") or CASO_H5N1.get("region", "")
-fecha_defecto = CASO_H5N1.get("fecha_evento", "")
-if "lugar_clima" in st.session_state:
-    lugar_col.text_input("Lugar (para traer el clima)", key="lugar_clima")
-else:
-    lugar_col.text_input("Lugar (para traer el clima)", lugar_defecto, key="lugar_clima")
-if "fecha_clima" in st.session_state:
-    fecha_col.text_input("Fecha (AAAA-MM-DD)", key="fecha_clima")
-else:
-    fecha_col.text_input("Fecha (AAAA-MM-DD)", fecha_defecto, key="fecha_clima")
-boton_col.write("")  # empareja el boton con la altura de los campos de al lado
-boton_col.button("Traer clima", on_click=pedir_clima, disabled=corriendo)
-if st.session_state.get("clima_error"):
-    st.warning("No se pudo obtener el clima de Open-Meteo: revisa el lugar, la fecha o la conexión a internet.")
-
-with st.form("caso"):
-    st.subheader("Caso")
-    caso = formulario_caso()
-    st.form_submit_button("Analizar", type="primary", disabled=corriendo, on_click=pedir_analisis)
-
 resultado = st.session_state.get("resultado")
 error = st.session_state.get("error")
-if resultado:
-    pausa = resultado["__interrupt__"][0].value if "__interrupt__" in resultado else None
-    mostrar_evidencia(resultado.get("resultados", {}))
-    mostrar_informe(resultado, pausa)
-    if st.session_state.get("avance"):
-        with st.expander("Avance de la última corrida"):
-            st.markdown("\n\n".join(st.session_state.avance))
-    # con un error pendiente el grafo no esta en la pausa de revision: primero hay que reintentar
-    if pausa and not error:
-        revision(corriendo)
-    elif not pausa:
-        st.success("Informe aprobado por el revisor.")
-        informe = resultado.get("evaluacion", {}).get("informe", {})
-        id_escenario = st.session_state.get("escenario_elegido")
-        nombre = f"informe_{id_escenario}.md" if id_escenario and id_escenario != ESCENARIO_EJEMPLO else "informe.md"
-        st.download_button("Descargar informe (Markdown)", informe_a_markdown(informe, resultado),
-                           file_name=nombre, mime="text/markdown")
+pausa = resultado["__interrupt__"][0].value if resultado and "__interrupt__" in resultado else None
+vista_grafo()  # el diagrama parte con todos los agentes en espera
+
+with st.sidebar:
+    st.toggle("Modo equipo", key="modo_equipo", value=DEMO_MODO_EQUIPO,
+              help="Agrega la comparación B1·B2·B3, el JSON del informe y las salidas de cada agente. "
+                   "Es para el equipo del proyecto, no para el veterinario.")
+    st.caption(AVISO)
+
+st.html(vista.encabezado(MODO, AVISO))
+
+# el formulario va abierto hasta que termina el primer analisis; despues queda plegado arriba.
+# Durante ese primer analisis sigue abierto (y desactivado): si se plegara al apretar Analizar,
+# Streamlit dejaria visibles, atenuados, los campos de la pasada anterior mientras corre el grafo.
+if st.session_state.get("plegar_formulario"):
+    analizado = st.session_state.get("caso_a_analizar") or {}
+    with st.expander(f"Caso analizado · {resumen_caso(analizado)}  (abrir para editar y volver a analizar)",
+                     icon=":material/edit_note:"):
+        formulario_caso(corriendo)
+else:
+    formulario_caso(corriendo)
+
+# proceso: el diagrama mientras corre o si fallo; si termino bien, una linea que se despliega
+lienzo = st.empty()
+if not corriendo:
+    if error:
+        svg(lienzo, vista.diagrama_grafo(vista_grafo()))
+    elif resultado:
+        with lienzo.container():
+            linea = vista.resumen_proceso(vista_grafo(), st.session_state.get("segundos_analisis"),
+                                          st.session_state.get("segundos_revision"))
+            with st.expander(linea, icon=":material/hub:"):
+                svg(st, vista.diagrama_grafo(vista_grafo()))
+                if st.session_state.get("avance"):
+                    st.markdown("\n\n".join(st.session_state.avance))
 
 if error:
-    st.error(error["mensaje"])
-    st.caption(f"Detalle técnico: {error['detalle'][:500]}")
-    if not resultado and st.session_state.get("avance"):
-        st.markdown("Alcanzaron a terminar:\n\n" + "\n\n".join(st.session_state.avance))
-    st.button("Reintentar", disabled=corriendo, on_click=pedir_reintento)
+    with st.container(border=True):
+        st.error(error["mensaje"])
+        st.caption(f"Detalle técnico: {error['detalle'][:500]}")
+        if not resultado and st.session_state.get("avance"):
+            st.markdown("Alcanzaron a terminar:\n\n" + "\n\n".join(st.session_state.avance))
+        st.button("Reintentar", icon=":material/refresh:", disabled=corriendo, on_click=pedir_reintento)
+
+if resultado:
+    mostrar_informe(resultado, pausa)
+
+if st.session_state.get("modo_equipo"):
+    modo_equipo(resultado, pausa, corriendo)
+
+# con un error pendiente el grafo no esta en la pausa de revision: primero hay que reintentar
+if resultado and not (pausa and error):
+    barra_firma(resultado, pausa, corriendo)
+
+if corriendo:
+    # mientras corre, la vista va al diagrama (queda bajo el boton Analizar o arriba del informe)
+    desplazar("const g = d.querySelector('.va-grafo'); if (g) { g.scrollIntoView({block: 'center'}); clearInterval(t); }")
+elif st.session_state.pop("subir", False):
+    # al terminar el analisis, arriba: lo primero que se lee es el nivel de riesgo
+    desplazar("m.scrollTo({top: 0}); clearInterval(t);")
 
 # el trabajo pesado va al final, con toda la pagina ya dibujada (y los botones desactivados)
 if corriendo:
     try:
-        ejecutar(pedido, caso)
+        ejecutar(pedido, lienzo)
     finally:
         st.session_state.pedido = None  # aunque algo falle, los botones no quedan bloqueados
     st.rerun()

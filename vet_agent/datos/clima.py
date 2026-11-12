@@ -12,6 +12,27 @@ def _get(url: str, params: dict) -> dict:
     return respuesta.json()
 
 
+def _coordenadas(lugar: str) -> tuple[float, float] | None:
+    geo = _get(GEOCODING_URL, {"name": lugar, "country": "CL"})
+    resultados = geo.get("results")
+    if not resultados:
+        return None
+    return resultados[0]["latitude"], resultados[0]["longitude"]
+
+
+def ubicar(lugar: str) -> tuple[float, float] | None:
+    """(latitud, longitud) de `lugar` en Chile, o None si no hay internet o no se encontro.
+
+    Nunca lanza una excepcion: la demo la usa para el mapa y, si falla, simplemente no lo muestra.
+    """
+    if not str(lugar or "").strip():
+        return None
+    try:
+        return _coordenadas(lugar)
+    except Exception:
+        return None
+
+
 def traer_clima(lugar: str, fecha: str) -> dict | None:
     """Busca el clima de `lugar` (nombre de ciudad/comuna) en `fecha` (AAAA-MM-DD).
 
@@ -19,11 +40,10 @@ def traer_clima(lugar: str, fecha: str) -> dict | None:
     o None si no hay internet o no se encontro el lugar (nunca lanza una excepcion).
     """
     try:
-        geo = _get(GEOCODING_URL, {"name": lugar, "country": "CL"})
-        resultados = geo.get("results")
-        if not resultados:
+        coordenadas = _coordenadas(lugar)
+        if coordenadas is None:
             return None
-        lat, lon = resultados[0]["latitude"], resultados[0]["longitude"]
+        lat, lon = coordenadas
 
         clima = _get(ARCHIVE_URL, {
             "latitude": lat,

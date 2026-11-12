@@ -41,13 +41,31 @@ Los 18 documentos del eje D que vienen de PDF ya están en `corpus/md/diagnostic
 
 ## Cómo usarlo
 
-**Demo web (Streamlit)** — formulario del caso, ejecución de los agentes y revisión humana en pantalla:
+**Demo web (Streamlit)** — apoyo a la decisión para un médico veterinario epidemiólogo: ingresa su caso, mira a los agentes trabajar y firma el informe:
 
 ```
 streamlit run app_demo.py
 ```
 
-Se abre en <http://localhost:8501>.
+Se abre en <http://localhost:8501>. Con `USAR_SIMULACION=true` en el `.env` no usa el LLM: la redacción es un informe de ejemplo completo y la búsqueda de evidencia sí es real. Con `false` usa el modelo de LM Studio y el análisis puede tardar varios minutos.
+
+**Entrada: el caso.** Un formulario en 4 secciones: plantel y ubicación, cuadro clínico, laboratorio y clima, y entorno. Cada campo tiene su unidad y un ejemplo de guía, y los obligatorios van marcados con `*`: especie, región, comuna, fecha, n.º de animales y signos clínicos. Si falta un obligatorio o un número viene mal escrito, la demo lo avisa y no analiza. Un dato que no se conoce se deja vacío y el informe lo marca como información faltante. El laboratorio se escribe uno por línea (`RT-PCR: positivo · 2026-05-03`). **Traer clima** completa temperatura, humedad y precipitación desde Open-Meteo (por defecto, con la comuna y la fecha del caso). Si hay internet, junto a los datos del plantel aparece un mapa chico de la comuna. **Cargar caso de ejemplo** trae un escenario de `corpus/escenarios/`. Al terminar el análisis, el formulario se pliega arriba del informe y se puede abrir para editar y volver a analizar.
+
+**Proceso.** Mientras se analiza se ve el diagrama del grafo: Climático → Diagnóstico → Bioseguridad → Moderador → Revisión humana se iluminan mientras trabajan, con la ronda de debate, el rechazo con comentario y el agente que falló. Al terminar queda una sola línea (por ejemplo, "4 agentes · 2 min 31 s · 1 ronda de debate") que se puede desplegar.
+
+**Salida: apoyo a la decisión**, en el orden en que hay que decidir:
+
+1. **Nivel de riesgo**, grande y en su color (verde, ámbar o rojo, que se usan solo para esto), con una frase de por qué y la confianza. Debajo va siempre el aviso: es apoyo a la decisión y requiere validación de un médico veterinario y de la autoridad competente.
+2. **Qué hacer ahora:** si el caso es de notificación obligatoria y a quién (SAG, SEREMI de Salud), y las acciones de prioridad inmediata destacadas. Después, las de corto plazo, las preventivas y los protocolos de bioseguridad.
+3. **Riesgos por dimensión One Health** (animal, humana, ambiental), compactos.
+4. **Para decidir mejor:** la información que falta, los diagnósticos a descartar y las incertidumbres.
+5. **Evidencia y citas** (plegable): las citas como notas al pie que muestran el fragmento y la fuente (una cita que no está en la evidencia recuperada se marca como posible invención del modelo), y los documentos que recuperó cada agente.
+
+Abajo, fija, la **barra de firma**: comentario + **Aprobar** / **Rechazar** (rechazar exige comentario). Después de aprobar aparece **Descargar informe (Markdown)**. Si el LLM falla, la demo explica el error y ofrece **Reintentar** desde el paso que falló. Mientras corre, el formulario y los botones quedan desactivados.
+
+**Modo equipo.** La comparación B1·B2·B3 (lee los `comparacion*.csv` de `resultados/`), el JSON del informe y las salidas de cada agente son para el equipo, no para el veterinario. Se activan con el interruptor **Modo equipo** de la barra lateral o con `DEMO_MODO_EQUIPO=true` en el `.env` (apagado por defecto).
+
+El tema (modo claro de alto contraste, acento verde azulado) está en `.streamlit/config.toml`. Los campos del formulario y el HTML/CSS de la pantalla están en `vet_agent/vista_demo.py`.
 
 **Terminal** — corre el caso de ejemplo `CASO_H5N1` y pregunta por terminal si apruebas el informe (`s` o `n`):
 
@@ -92,11 +110,12 @@ Necesita `chroma_db` armada y LM Studio encendido (o `USAR_SIMULACION=true`). **
 
 ```
 vet-agent-pia3/
-├── app_demo.py            demo web (Streamlit): formulario, agentes y revisión humana
+├── app_demo.py            demo web (Streamlit): caso del veterinario, agentes en vivo, informe y firma
 ├── vet_agent/             el sistema
 │   ├── grafo.py           flujo entre agentes (LangGraph) y pausa para la revisión humana
-│   ├── prompts.py         prompts de los agentes (versión v1, congelada)
+│   ├── prompts.py         prompts de los agentes (versión v2, con límites de largo; VERSION_PROMPTS)
 │   ├── main.py · api.py   uso por terminal y por API (FastAPI)
+│   ├── vista_demo.py      campos del formulario y HTML/CSS de la demo (riesgo, acciones, diagrama, comparación)
 │   ├── evaluar.py         compara B1 (LLM sin RAG), B2 (un agente con RAG) y B3 (multiagente)
 │   ├── pruebas.py         pruebas automáticas
 │   ├── agentes/           climático, diagnóstico, bioseguridad, moderador y su base común
