@@ -719,6 +719,57 @@ def prueba_evaluar_reintenta_si_falla():
     assert reintentos_vistos == [0, 0], "durante la evaluacion consultar_llm no debe reintentar por su cuenta"
 
 
+def prueba_evaluar_tiempos_por_caso():
+    # B3 falla la primera vez: su tiempo del caso suma los 2 intentos y el archivo
+    # de tiempos queda junto al registro (aca, en la carpeta temporal)
+    import csv
+    import tempfile
+    from vet_agent import evaluar
+
+    llamadas_b3 = []
+
+    def b3_falla_la_primera_vez(caso):
+        llamadas_b3.append(1)
+        if len(llamadas_b3) == 1:
+            raise ValueError("[moderador] la respuesta se cortó al llegar a max_tokens (3000)")
+        return evaluar.multiagente(caso)
+
+    originales = dict(evaluar.BASELINES)
+    evaluar.BASELINES["B3"] = ("multiagente", b3_falla_la_primera_vez)
+    try:
+        with tempfile.TemporaryDirectory() as temporal:
+            registro = pathlib.Path(temporal) / "registro.csv"
+            con_buscador_de_prueba(lambda: evaluar.evaluar([("IAAP-T1", CASO_EVALUAR)], 1, registro),
+                                   usar_colecciones=True)
+            with open(registro, encoding="utf-8") as f:
+                intentos = list(csv.DictReader(f))
+            with open(registro.with_name(evaluar.ARCHIVO_TIEMPOS), encoding="utf-8") as f:
+                texto = f.read()
+                f.seek(0)
+                tiempos = list(csv.DictReader(f))
+    finally:
+        evaluar.BASELINES.clear()
+        evaluar.BASELINES.update(originales)
+
+    assert texto.splitlines()[0] == ",".join(f'"{c}"' for c in evaluar.COLUMNAS_TIEMPOS)  # orden y comillas
+    assert len(tiempos) == 1, "una fila por caso (escenario x repeticion)"
+    t = tiempos[0]
+    assert (t["escenario"], t["repeticion"]) == ("IAAP-T1", "1")
+    assert (t["intentos_B1"], t["intentos_B2"], t["intentos_B3"]) == ("1", "1", "2")
+    b3 = sum(float(i["tiempo_s"]) for i in intentos if i["baseline"] == "B3")
+    assert abs(float(t["B3_s"]) - b3) < 0.11
+    assert abs(float(t["total_s"]) - sum(float(t[f"B{n}_s"]) for n in (1, 2, 3))) < 0.11
+    assert t["fallidas"] == ""
+
+    # si una version falla en todos sus intentos, queda en "fallidas"
+    def intento(baseline, estado):
+        return {"escenario": "X", "repeticion": 1, "baseline": baseline, "tiempo_s": "1.0", "estado": estado}
+    fijos = {"modelo_y_version": "simulacion", "version_sistema": "abc1234"}
+    fila = evaluar.tiempo_del_caso([intento("B1", "ok"), intento("B2", "ok"),
+                                    intento("B3", "error"), intento("B3", "error")], "2026-11-07 10:00:00", fijos)
+    assert (fila["B3_s"], fila["intentos_B3"], fila["total_s"], fila["fallidas"]) == ("2.0", 2, "4.0", "B3")
+
+
 def prueba_llm_respuesta_cortada_por_max_tokens():
     # el modelo llego a max_tokens: error claro, sin volver a preguntar
     class Mensaje:
@@ -943,6 +994,7 @@ if __name__ == "__main__":
 
         prueba_evaluar_registro_formato,
         prueba_evaluar_reintenta_si_falla,
+        prueba_evaluar_tiempos_por_caso,
         prueba_llm_respuesta_cortada_por_max_tokens,
 
         prueba_traer_clima,
