@@ -100,6 +100,15 @@ def _texto(valor) -> str:
     return "" if valor is None else str(valor)
 
 
+# un texto que es solo un marcador entre parentesis, como "(comuna)" en la fila de ejemplo
+# IAAP-00 de la planilla de Investigacion, es un dato que falta, no un dato
+MARCADOR = re.compile(r"^\(.*\)$")
+
+
+def sin_marcador(texto: str) -> str:
+    return "" if MARCADOR.match(texto.strip()) else texto
+
+
 def lab_a_texto(resultados) -> str:
     """[{"prueba", "resultado", "fecha"}] -> una linea por resultado: "prueba: resultado · fecha"."""
     lineas = []
@@ -147,7 +156,7 @@ def caso_a_formulario(datos: dict, campos: list[str]) -> dict[str, str]:
         elif tipo == "lineas":
             valores[f"caso_{campo}"] = "\n".join(valor or [])
         else:
-            valores[f"caso_{campo}"] = _texto(valor)
+            valores[f"caso_{campo}"] = sin_marcador(_texto(valor))
     return valores
 
 
@@ -194,7 +203,7 @@ def leer_caso(valores, campos: list[str]) -> tuple[dict, list[str]]:
         elif tipo in ("entero", "numero"):
             valor = _numero(texto, spec, tipo == "entero", errores)
         else:
-            valor = texto.strip() or None
+            valor = sin_marcador(texto).strip() or None
             if valor and tipo == "fecha" and not FECHA.match(valor):
                 errores.append(f"{spec['etiqueta']}: usa el formato AAAA-MM-DD (ej: {spec['ejemplo']}).")
         if spec.get("obligatorio") and valor in (None, [], "") and not any(spec["etiqueta"] in e for e in errores):

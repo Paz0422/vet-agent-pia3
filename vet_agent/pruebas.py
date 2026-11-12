@@ -1224,6 +1224,30 @@ def prueba_demo_vaciar_formulario():
     con_demo(revisar)
 
 
+def prueba_demo_sin_comuna_no_analiza_y_resumen_con_comuna():
+    # IAAP-00 es la fila de ejemplo de la planilla de Investigacion y trae "(comuna)":
+    # es un marcador, no una comuna. Antes pasaba la validacion y el resumen decia "(comuna)"
+    def revisar(at):
+        at.selectbox(key="escenario_elegido").select("IAAP-00").run()
+        assert at.text_input(key="caso_comuna").value == "", "el marcador se carga como campo vacio"
+        apretar(at, "Analizar")
+        assert any("Falta: Comuna." in a for a in avisos(at)), avisos(at)
+        assert not hay_boton(at, "Aprobar")
+        # escrito a mano, el marcador tampoco cuenta como comuna
+        at.text_input(key="caso_comuna").input("(comuna)").run()
+        apretar(at, "Analizar")
+        assert any("Falta: Comuna." in a for a in avisos(at)), avisos(at)
+        assert not hay_boton(at, "Aprobar")
+        # con la comuna escrita, analiza y el resumen del caso la muestra
+        at.text_input(key="caso_comuna").input("Quintero").run()
+        apretar(at, "Analizar")
+        assert hay_boton(at, "Aprobar")
+        resumen = next(e.label for e in at.expander if e.label.startswith("Caso analizado"))
+        assert "Quintero" in resumen and "(comuna)" not in resumen, resumen
+        assert at.session_state["resultado"]["caso"]["comuna"] == "Quintero"
+    con_demo(revisar, con_ejemplo=False)
+
+
 def prueba_vista_demo_formulario_ida_y_vuelta():
     from vet_agent import vista_demo as vista
     from vet_agent.main import CASO_H5N1
@@ -1399,6 +1423,7 @@ if __name__ == "__main__":
         prueba_demo_sin_comuna_no_hay_mapa,
         prueba_demo_formulario_vacio_pide_obligatorios,
         prueba_demo_vaciar_formulario,
+        prueba_demo_sin_comuna_no_analiza_y_resumen_con_comuna,
         prueba_demo_comparar_versiones,
         prueba_vista_demo_escapa_html_y_numera_citas,
         prueba_vista_demo_siguiente_nodo,
