@@ -212,6 +212,22 @@ def leer_caso(valores, campos: list[str]) -> tuple[dict, list[str]]:
     return caso, errores
 
 
+def obligatorios_pendientes(valores, campos: list[str]) -> list[str]:
+    """Etiquetas de los campos obligatorios que siguen vacios (un marcador como "(comuna)" cuenta como vacio)."""
+    caso, _ = leer_caso(valores, campos)
+    return [CAMPOS[c]["etiqueta"] for c in campos
+            if CAMPOS.get(c, {}).get("obligatorio") and caso.get(c) in (None, [], "")]
+
+
+def estado_obligatorios(pendientes: list[str], total: int) -> str:
+    """Texto de la barra de Analizar: cuantos obligatorios hay y cuales faltan."""
+    if not pendientes:
+        return ('<div class="va-listo-txt"><b>✓ Caso listo para analizar.</b> '
+                'Los datos que no completes quedan como información faltante.</div>')
+    return (f'<div class="va-listo-txt"><b>Obligatorios: {total - len(pendientes)} de {total}.</b> '
+            f'Faltan: {esc(", ".join(pendientes))}.</div>')
+
+
 # ====================== estilos ======================
 
 CSS = """
@@ -405,6 +421,14 @@ div[data-testid="stLayoutWrapper"]:has(> .st-key-firma) { position: sticky; bott
   animation: va-entrar .5s .2s var(--va-curva) both; }
 .st-key-firma::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; border-radius: 14px 14px 0 0;
   background: linear-gradient(90deg, var(--va-oscuro), var(--va-turquesa), var(--va-cian)); }
+/* barra de Analizar, fija abajo mientras se llena el formulario (mismo truco que la de firma) */
+div[data-testid="stLayoutWrapper"]:has(> .st-key-barra_analizar) { position: sticky; bottom: 0; z-index: 55; }
+.st-key-barra_analizar { background: rgba(255, 255, 255, .94); backdrop-filter: blur(6px); border-radius: 14px 14px 0 0;
+  padding: .65rem 1.1rem; box-shadow: 0 -8px 24px rgba(11, 18, 32, .12); margin-top: 1rem; position: relative; }
+.st-key-barra_analizar::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; border-radius: 14px 14px 0 0;
+  background: linear-gradient(90deg, var(--va-acento), var(--va-turquesa), var(--va-cielo)); }
+.va-listo-txt { font-size: .95rem; color: var(--va-texto); }
+.va-listo-txt b { color: var(--va-oscuro); }
 .va-firma-t { font-size: .85rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; color: var(--va-oscuro); }
 @media (max-width: 800px) { .va-riesgo { grid-template-columns: 1fr; } }
 </style>

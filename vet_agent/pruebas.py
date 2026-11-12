@@ -1248,6 +1248,24 @@ def prueba_demo_sin_comuna_no_analiza_y_resumen_con_comuna():
     con_demo(revisar, con_ejemplo=False)
 
 
+def prueba_vista_demo_obligatorios_pendientes():
+    # la barra de Analizar dice que obligatorios faltan, para no tener que adivinar
+    from vet_agent import vista_demo as vista
+    from vet_agent.main import CASO_H5N1
+    campos = list(CASO_H5N1)
+    total = sum(1 for c in campos if vista.CAMPOS.get(c, {}).get("obligatorio"))
+    assert vista.obligatorios_pendientes({}, campos) == [
+        "Especie", "Región", "Comuna", "Fecha del evento", "Animales en el plantel", "Signos clínicos"]
+    valores = vista.caso_a_formulario(CASO_H5N1, campos)
+    assert vista.obligatorios_pendientes(valores, campos) == []
+    assert "Caso listo para analizar" in vista.estado_obligatorios([], total)
+    valores["caso_comuna"] = "(comuna)"  # el marcador cuenta como vacio
+    pendientes = vista.obligatorios_pendientes(valores, campos)
+    assert pendientes == ["Comuna"]
+    texto = vista.estado_obligatorios(pendientes, total)
+    assert f"Obligatorios: {total - 1} de {total}." in texto and "Faltan: Comuna." in texto
+
+
 def prueba_vista_demo_formulario_ida_y_vuelta():
     from vet_agent import vista_demo as vista
     from vet_agent.main import CASO_H5N1
@@ -1428,6 +1446,7 @@ if __name__ == "__main__":
         prueba_vista_demo_escapa_html_y_numera_citas,
         prueba_vista_demo_siguiente_nodo,
         prueba_vista_demo_formulario_ida_y_vuelta,
+        prueba_vista_demo_obligatorios_pendientes,
         prueba_vista_demo_apoyo_a_la_decision,
         prueba_vista_demo_lee_comparaciones,
 

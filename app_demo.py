@@ -52,6 +52,7 @@ PENDIENTE = "Se completa al conectar el LLM" if USAR_SIMULACION else "El modelo 
 
 RESULTADOS = pathlib.Path(__file__).resolve().parent / "resultados"
 CAMPOS_CASO = list(CASO_H5N1)  # campos (y orden) del caso que reciben los agentes
+N_OBLIGATORIOS = sum(1 for c in CAMPOS_CASO if vista.CAMPOS.get(c, {}).get("obligatorio"))
 
 
 @st.cache_resource
@@ -285,10 +286,19 @@ def formulario_caso(corriendo: bool):
     for nombre in otros:
         campo(nombre, corriendo)
 
-    st.button("Analizar", type="primary", icon=":material/play_arrow:", disabled=corriendo, on_click=pedir_analisis)
-    errores_caso = st.session_state.get("errores_caso")
-    if errores_caso:
-        st.warning("Revisa el caso antes de analizar:\n\n" + "\n".join(f"- {e}" for e in errores_caso))
+    # mientras se llena el caso, Analizar va en una barra fija abajo (siempre a la vista) que dice
+    # que obligatorios faltan. Con el formulario plegado arriba del informe va al final, sin fijar,
+    # para no taparse con la barra de firma.
+    barra = st.container() if st.session_state.get("plegar_formulario") else st.container(key="barra_analizar")
+    with barra:
+        texto_col, boton_col = st.columns([4, 1], vertical_alignment="center")
+        pendientes = vista.obligatorios_pendientes(st.session_state, CAMPOS_CASO)
+        texto_col.html(vista.estado_obligatorios(pendientes, N_OBLIGATORIOS))
+        boton_col.button("Analizar", type="primary", icon=":material/play_arrow:", disabled=corriendo,
+                         on_click=pedir_analisis, width="stretch")
+        errores_caso = st.session_state.get("errores_caso")
+        if errores_caso:
+            st.warning("Revisa el caso antes de analizar:\n\n" + "\n".join(f"- {e}" for e in errores_caso))
 
 
 def resumen_caso(caso: dict) -> str:
