@@ -16,8 +16,9 @@ LLM_MODELO = os.getenv("LLM_MODELO", "qwen/qwen3-4b-2507")
 LLM_TEMPERATURA = float(os.getenv("LLM_TEMPERATURA", "0.2"))
 LLM_REINTENTOS = int(os.getenv("LLM_REINTENTOS", "2"))
 LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "3600"))
-# tope de tokens de cada respuesta del modelo
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "3000"))
+# tope de tokens de cada respuesta del modelo (con 3000 el informe del moderador se cortaba;
+# el prompt del moderador + esta respuesta tienen que caber en el contexto de LM Studio, 16384)
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 
 # --- RAG: cuanto texto de los documentos va en cada prompt ---
 # fragmentos que busca cada agente en su coleccion
