@@ -15,6 +15,11 @@ los campos entre comillas), con el formato acordado con Investigacion (documento
 - Si un intento termina en error (tiempo agotado, respuesta vacia, JSON invalido o texto
   cortado por max_tokens), se repite la misma combinacion hasta MAX_INTENTOS en total.
   Cada intento es una fila; apenas uno sale "ok" no se hacen mas.
+- Los reintentos usan una cache de respuestas (con_cache_respuestas): las llamadas al LLM que
+  ya salieron bien en un intento anterior de la misma combinacion no se repiten. Por eso el
+  tiempo_s de un reintento solo mide lo que se volvio a llamar al LLM (en B3, normalmente solo
+  el moderador), no el caso completo. El tiempo real de cada caso es el de tiempos_por_caso.csv,
+  que suma todos los intentos.
 - Mientras corre, consultar_llm no reintenta por su cuenta (LLM_REINTENTOS = 0), asi cada
   falla queda registrada como intento. La demo y main.py siguen usando LLM_REINTENTOS del .env.
 Ademas, resultados/comparacion.csv resume la ultima ejecucion (el ultimo intento de cada corrida),
@@ -27,6 +32,7 @@ import csv
 import json
 import pathlib
 import subprocess
+import sys
 import time
 import urllib.request
 from contextlib import contextmanager
@@ -272,6 +278,42 @@ def sin_reintentos_llm():
         llm.LLM_REINTENTOS = original
 
 
+@contextmanager
+def con_cache_respuestas():
+    """Guarda respuestas del LLM que salieron bien para reutilizarlas en reintentos
+    de la misma combinacion (baseline, escenario, repeticion).
+
+    Clave: (agente, instrucciones, pregunta). Si la pregunta cambia (rondas de
+    debate del moderador) no se reutiliza. El diccionario vive solo dentro del
+    with: al pasar a otra combinacion se crea uno nuevo.
+    """
+    cache = {}
+    original = llm.consultar_llm
+
+    def wrapper(instrucciones, pregunta, agente):
+        clave = (agente, instrucciones, pregunta)
+        if clave in cache:
+            return cache[clave]
+        texto = original(instrucciones, pregunta, agente)
+        cache[clave] = texto  # solo si salio bien (consultar_llm lanza si falla)
+        return texto
+
+    llm.consultar_llm = wrapper
+    # vars() y no getattr(): algunas librerias (ej. transformers) cargan submodulos al
+    # pedirles un atributo, y eso puede fallar si falta una dependencia opcional
+    importados = [m for m in list(sys.modules.values())
+                  if m is not None and vars(m).get("consultar_llm") is original]
+    for m in importados:
+        m.consultar_llm = wrapper
+    try:
+        yield cache
+    finally:
+        llm.consultar_llm = original
+        for m in importados:
+            if vars(m).get("consultar_llm") is wrapper:
+                m.consultar_llm = original
+
+
 def evaluar(escenarios: list[tuple[str, dict]], repeticiones: int = 1, registro: pathlib.Path = REGISTRO) -> list[dict]:
     fijos = {"version_sistema": version_sistema(), "modelo_y_version": modelo_y_version(),
              "temperatura": LLM_TEMPERATURA, "max_tokens": LLM_MAX_TOKENS,
@@ -284,16 +326,19 @@ def evaluar(escenarios: list[tuple[str, dict]], repeticiones: int = 1, registro:
                 inicio_caso, desde = datetime.now().strftime("%Y-%m-%d %H:%M:%S"), len(filas)
                 for baseline, (nombre, _) in BASELINES.items():
                     n += 1
-                    for intento in range(1, MAX_INTENTOS + 1):
-                        print(f"\n=== [{n}/{total}] {escenario} · {baseline} ({nombre}) · "
-                              f"repetición {repeticion}/{repeticiones} · intento {intento}/{MAX_INTENTOS} ===")
-                        fila = correr(baseline, escenario, caso, repeticion, intento, fijos)
-                        registrar(fila, registro)
-                        filas.append(fila)
-                        detalle = f"{len(fila['fragmentos'].split(';')) if fila['fragmentos'] else 0} fragmentos recuperados"
-                        print(f"{fila['id_corrida']}: {fila['estado']}, {fila['tiempo_s']} s, {detalle}")
-                        if fila["estado"] == "ok":
-                            break
+                    # cache nuevo por combinacion: reintentos reutilizan respuestas
+                    # buenas, pero una repeticion nueva vuelve a llamar al LLM
+                    with con_cache_respuestas():
+                        for intento in range(1, MAX_INTENTOS + 1):
+                            print(f"\n=== [{n}/{total}] {escenario} · {baseline} ({nombre}) · "
+                                  f"repetición {repeticion}/{repeticiones} · intento {intento}/{MAX_INTENTOS} ===")
+                            fila = correr(baseline, escenario, caso, repeticion, intento, fijos)
+                            registrar(fila, registro)
+                            filas.append(fila)
+                            detalle = f"{len(fila['fragmentos'].split(';')) if fila['fragmentos'] else 0} fragmentos recuperados"
+                            print(f"{fila['id_corrida']}: {fila['estado']}, {fila['tiempo_s']} s, {detalle}")
+                            if fila["estado"] == "ok":
+                                break
                 # terminadas las 3 versiones del caso, se guarda su tiempo
                 caso_tiempo = tiempo_del_caso(filas[desde:], inicio_caso, fijos)
                 _agregar(caso_tiempo, tiempos, COLUMNAS_TIEMPOS)
