@@ -1,8 +1,8 @@
-# tema de la demo (app_demo.py): modo claro para proyectar, acento verde azulado (One Health).
-# Rojo, ámbar y verde se reservan para el nivel de riesgo.
+# tema de la demo (app_demo.py): modo claro con alto contraste para proyectar y acento
+# verde azulado (One Health). Rojo, ámbar y verde se reservan para el nivel de riesgo.
 [theme]
 base = "light"
 primaryColor = "#0f766e"
-backgroundColor = "#f8fafc"
-secondaryBackgroundColor = "#eef2f6"
-textColor = "#0f172a"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#eef3f2"
+textColor = "#0b1220"

@@ -1,24 +1,24 @@
-"""Piezas visuales de la demo (app_demo.py): CSS, HTML y los datos que se dibujan.
+"""Piezas de la demo (app_demo.py) que no son widgets de Streamlit: el formulario del caso
+(campos, validacion, conversion), el HTML/CSS del informe y la lectura de las comparaciones.
 
-Aca no hay widgets de Streamlit (botones, campos): solo funciones que devuelven HTML o
-datos, para que app_demo.py quede con la logica de la pantalla y esto se pueda probar
-sin abrir la demo. Todo texto que viene del caso, del LLM o de los documentos pasa por
-esc() antes de ir al HTML: el modelo podria devolver algo como "<script>".
+Aca todo son funciones puras: app_demo.py queda con la logica de la pantalla y esto se
+prueba sin abrir la demo. Todo texto que viene del caso, del LLM o de los documentos pasa
+por esc() antes de ir al HTML: el modelo podria devolver algo como "<script>".
 """
 import csv
 import html
 import json
-import math
 import pathlib
+import re
+from collections import Counter
 
 from vet_agent.grafo import despues_del_moderador, despues_de_revision_humana
 
 ACENTO = "#0f766e"
-# rojo / ambar / verde se usan SOLO para el nivel de riesgo
-COLOR_RIESGO = {"bajo": "#15803d", "moderado": "#d97706", "alto": "#dc2626", "muy_alto": "#991b1b"}
+# rojo / ambar / verde se usan SOLO para el nivel de riesgo (tonos oscuros: texto blanco encima)
+COLOR_RIESGO = {"bajo": "#15803d", "moderado": "#b45309", "alto": "#b91c1c", "muy_alto": "#7f1d1d"}
 NIVELES = ["bajo", "moderado", "alto", "muy_alto"]
 
-# nodos del grafo, en el orden en que se dibujan
 NODOS = ["climatico", "diagnostico", "bioseguridad", "moderador", "revision_humana"]
 NOMBRE_NODO = {"climatico": "Climático", "diagnostico": "Diagnóstico", "bioseguridad": "Bioseguridad",
                "moderador": "Moderador", "revision_humana": "Revisión humana"}
@@ -53,170 +53,295 @@ def como_dict(item, clave: str) -> dict:
     return item if isinstance(item, dict) else {clave: item}
 
 
-# ---------- estilos ----------
+# ====================== formulario del caso ======================
+# tipo: texto | parrafo | entero | numero | fecha | lineas | laboratorio
+# Las claves de sesion son caso_<campo> (y caso_clima_<sub>): las usan las pruebas.
+
+CAMPOS = {
+    "especie": {"etiqueta": "Especie", "tipo": "texto", "obligatorio": True, "ejemplo": "gallinas ponedoras"},
+    "sistema_productivo": {"etiqueta": "Sistema productivo", "tipo": "texto",
+                           "ejemplo": "plantel comercial, galpones abiertos sin malla antiaves"},
+    "n_animales": {"etiqueta": "Animales en el plantel", "tipo": "entero", "obligatorio": True, "unidad": "n.º",
+                   "ejemplo": "40000"},
+    "region": {"etiqueta": "Región", "tipo": "texto", "obligatorio": True, "ejemplo": "Valparaíso"},
+    "comuna": {"etiqueta": "Comuna", "tipo": "texto", "obligatorio": True, "ejemplo": "Concón"},
+    "fecha_evento": {"etiqueta": "Fecha del evento", "tipo": "fecha", "obligatorio": True, "unidad": "AAAA-MM-DD",
+                     "ejemplo": "2026-05-01"},
+    "signos_clinicos": {"etiqueta": "Signos clínicos", "tipo": "lineas", "obligatorio": True, "unidad": "uno por línea",
+                        "ejemplo": "mortalidad súbita\ncianosis de cresta y barbilla\ncaída brusca de la postura"},
+    "mortalidad_pct": {"etiqueta": "Mortalidad", "tipo": "numero", "unidad": "%", "ejemplo": "12", "rango": (0, 100)},
+    "morbilidad_pct": {"etiqueta": "Morbilidad", "tipo": "numero", "unidad": "%", "ejemplo": "30", "rango": (0, 100)},
+    "indicadores_productivos": {"etiqueta": "Indicadores productivos", "tipo": "parrafo",
+                                "ejemplo": "caída de la postura de 20 % en 3 días; menor consumo de agua"},
+    "resultados_laboratorio": {"etiqueta": "Resultados de laboratorio", "tipo": "laboratorio",
+                               "unidad": "uno por línea: prueba: resultado · fecha",
+                               "ejemplo": "RT-PCR: positivo a influenza A (gen M) · 2026-05-03\n"
+                                          "Subtipificación: H5N1 · 2026-05-05"},
+    "aves_silvestres_cercanas": {"etiqueta": "Aves silvestres cercanas", "tipo": "parrafo",
+                                 "ejemplo": "aves migratorias en un humedal a 2 km"},
+    "historial_brotes_zona": {"etiqueta": "Historial de brotes en la zona", "tipo": "parrafo",
+                              "ejemplo": "detecciones de H5N1 en aves silvestres de la costa el año pasado"},
+    "movimientos_animales": {"etiqueta": "Movimientos de animales y personas", "tipo": "parrafo",
+                             "ejemplo": "ingreso de pollitas de recría hace 10 días; visitas sin registro"},
+}
+CLIMA = {"temperatura_media_c": {"etiqueta": "Temperatura media", "unidad": "°C", "ejemplo": "10"},
+         "humedad_relativa_pct": {"etiqueta": "Humedad relativa", "unidad": "%", "ejemplo": "85", "rango": (0, 100)},
+         "precipitacion_mm": {"etiqueta": "Precipitación", "unidad": "mm", "ejemplo": "15"}}
+
+FECHA = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def etiqueta_campo(spec: dict) -> str:
+    texto = spec["etiqueta"] + (f" ({spec['unidad']})" if spec.get("unidad") else "")
+    return texto + (" *" if spec.get("obligatorio") else "")
+
+
+def _texto(valor) -> str:
+    return "" if valor is None else str(valor)
+
+
+def lab_a_texto(resultados) -> str:
+    """[{"prueba", "resultado", "fecha"}] -> una linea por resultado: "prueba: resultado · fecha"."""
+    lineas = []
+    for r in resultados or []:
+        r = como_dict(r, "prueba")
+        linea = _texto(r.get("prueba"))
+        if r.get("resultado") not in (None, ""):
+            linea += f": {r['resultado']}"
+        if r.get("fecha"):
+            linea += f" · {r['fecha']}"
+        lineas.append(linea)
+    return "\n".join(lineas)
+
+
+def texto_a_lab(texto: str) -> list[dict]:
+    """Lo inverso de lab_a_texto. Una fecha al final (" · AAAA-MM-DD") es opcional."""
+    resultados = []
+    for linea in (texto or "").splitlines():
+        linea = linea.strip()
+        if not linea:
+            continue
+        fecha = None
+        if " · " in linea and FECHA.match(linea.rsplit(" · ", 1)[1].strip()):
+            linea, fecha = (p.strip() for p in linea.rsplit(" · ", 1))
+        prueba, _, resultado = linea.partition(":")
+        resultados.append({"prueba": prueba.strip(), "resultado": resultado.strip() or None, "fecha": fecha})
+    return resultados
+
+
+def caso_a_formulario(datos: dict, campos: list[str]) -> dict[str, str]:
+    """Valores de sesion (caso_<campo>) que muestran `datos` en el formulario.
+
+    Recorre todos los `campos` (los de CASO_H5N1): lo que no venga en `datos` queda vacio,
+    para no dejar pegado algo de un caso anterior.
+    """
+    valores = {}
+    for campo in campos:
+        valor = datos.get(campo)
+        tipo = CAMPOS.get(campo, {}).get("tipo", "texto")
+        if campo == "clima":
+            for sub in CLIMA:
+                valores[f"caso_clima_{sub}"] = _texto((valor or {}).get(sub))
+        elif tipo == "laboratorio":
+            valores[f"caso_{campo}"] = lab_a_texto(valor)
+        elif tipo == "lineas":
+            valores[f"caso_{campo}"] = "\n".join(valor or [])
+        else:
+            valores[f"caso_{campo}"] = _texto(valor)
+    return valores
+
+
+def _numero(texto: str, spec: dict, entero: bool, errores: list[str]):
+    texto = texto.strip().replace(",", ".")
+    if not texto:
+        return None
+    try:
+        valor = float(texto.replace(" ", ""))
+    except ValueError:
+        errores.append(f"{spec['etiqueta']}: escribe un número (ej: {spec['ejemplo']}).")
+        return None
+    if entero:
+        if not valor.is_integer() or valor < 0:
+            errores.append(f"{spec['etiqueta']}: escribe un número entero (ej: {spec['ejemplo']}).")
+            return None
+        return int(valor)
+    minimo, maximo = spec.get("rango", (None, None))
+    if minimo is not None and not minimo <= valor <= maximo:
+        errores.append(f"{spec['etiqueta']}: debe estar entre {minimo} y {maximo} {spec.get('unidad', '')}".rstrip() + ".")
+        return None
+    return valor
+
+
+def leer_caso(valores, campos: list[str]) -> tuple[dict, list[str]]:
+    """Arma el caso desde los valores del formulario y revisa obligatorios y formatos.
+
+    Devuelve (caso, errores). Un campo vacio queda en None (o lista vacia): para los agentes
+    es un dato desconocido, igual que los null de los escenarios de Investigacion.
+    """
+    caso, errores = {}, []
+    for campo in campos:
+        if campo == "clima":
+            caso["clima"] = {sub: _numero(_texto(valores.get(f"caso_clima_{sub}")), spec, False, errores)
+                             for sub, spec in CLIMA.items()}
+            continue
+        spec = CAMPOS.get(campo, {"etiqueta": campo.replace("_", " ").capitalize(), "tipo": "texto"})
+        texto = _texto(valores.get(f"caso_{campo}"))
+        tipo = spec["tipo"]
+        if tipo == "lineas":
+            valor = [linea.strip() for linea in texto.splitlines() if linea.strip()]
+        elif tipo == "laboratorio":
+            valor = texto_a_lab(texto)
+        elif tipo in ("entero", "numero"):
+            valor = _numero(texto, spec, tipo == "entero", errores)
+        else:
+            valor = texto.strip() or None
+            if valor and tipo == "fecha" and not FECHA.match(valor):
+                errores.append(f"{spec['etiqueta']}: usa el formato AAAA-MM-DD (ej: {spec['ejemplo']}).")
+        if spec.get("obligatorio") and valor in (None, [], "") and not any(spec["etiqueta"] in e for e in errores):
+            errores.append(f"Falta: {spec['etiqueta']}.")
+        caso[campo] = valor
+    return caso, errores
+
+
+# ====================== estilos ======================
 
 CSS = """
 <style>
 :root {
-  --va-acento: #0f766e; --va-acento-2: #115e59; --va-acento-suave: #f0fdfa; --va-acento-borde: #99f6e4;
-  --va-tinta: #0f172a; --va-gris: #64748b; --va-gris-claro: #94a3b8; --va-borde: #e2e8f0;
-  --va-fondo: #f8fafc; --va-carta: #ffffff;
+  --va-acento: #0f766e; --va-oscuro: #0b3d3a; --va-tinta: #0b1220; --va-texto: #1f2937;
+  --va-gris: #4b5563; --va-gris-2: #6b7280; --va-linea: #d5dedc; --va-suave: #eef5f4;
 }
-[data-testid="stMainBlockContainer"] { padding-top: 4.2rem !important; padding-bottom: 0 !important; max-width: 1500px; }
-section[data-testid="stSidebar"] { min-width: 360px; }
-section[data-testid="stSidebar"] .va-lado-titulo {
-  font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--va-gris);
-  font-weight: 700; margin: .4rem 0 .2rem;
-}
+[data-testid="stMainBlockContainer"] { padding-top: 3.6rem !important; padding-bottom: 0 !important; max-width: 1380px; }
 
 /* encabezado */
-.va-enc { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap;
-  padding: .2rem 0 .9rem; border-bottom: 1px solid var(--va-borde); margin-bottom: .6rem; }
-.va-marca { display: flex; align-items: center; gap: .65rem; }
-.va-logo { width: 38px; height: 38px; border-radius: 10px; background: var(--va-acento);
-  display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 1.05rem; }
-.va-marca b { display: block; font-size: 1.15rem; letter-spacing: .06em; color: var(--va-tinta); }
-.va-marca span { font-size: .8rem; color: var(--va-gris); }
-.va-chips { display: flex; gap: .4rem; flex-wrap: wrap; flex: 1; }
-.va-chip { border: 1px solid var(--va-borde); background: var(--va-carta); border-radius: 999px;
-  padding: .18rem .7rem; font-size: .82rem; color: var(--va-tinta); white-space: nowrap; }
-.va-chip i { font-style: normal; color: var(--va-gris); margin-right: .3rem; }
-.va-modo { border-radius: 999px; padding: .22rem .75rem; font-size: .8rem; font-weight: 600;
-  background: var(--va-acento-suave); color: var(--va-acento-2); border: 1px solid var(--va-acento-borde); }
-.va-modo::before { content: "●"; margin-right: .35rem; }
-.va-aviso { font-size: .78rem; color: var(--va-gris); margin: -.2rem 0 .4rem; }
+.va-banda { background: var(--va-oscuro); color: #fff; border-radius: 14px; padding: 1rem 1.4rem;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.va-banda .logo { width: 46px; height: 46px; border-radius: 11px; background: #fff; color: var(--va-oscuro);
+  font-weight: 900; display: grid; place-items: center; font-size: 1.15rem; }
+.va-banda .t b { display: block; font-size: 1.4rem; letter-spacing: .08em; line-height: 1.15; }
+.va-banda .t span { font-size: .95rem; opacity: .88; }
+.va-banda .modo { margin-left: auto; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.4);
+  border-radius: 999px; padding: .3rem .9rem; font-size: .88rem; font-weight: 600; }
+.va-banda .nota { flex-basis: 100%; font-size: .85rem; opacity: .82; margin-top: -.25rem; }
 
-/* diagrama del grafo */
-.va-grafo { background: var(--va-carta); border: 1px solid var(--va-borde); border-radius: 14px;
-  padding: .3rem .6rem .2rem; }
-.va-grafo svg { width: 100%; height: auto; display: block; max-height: 165px; }
-.va-grafo-pie { display: flex; justify-content: space-between; gap: 1rem; font-size: .8rem;
-  color: var(--va-gris); padding: 0 .4rem .35rem; }
-.va-grafo-pie b { color: var(--va-acento-2); }
-.va-nodo rect { fill: #fff; stroke: #cbd5e1; stroke-width: 1.5; }
-.va-nodo .n { font: 600 14.5px system-ui, "Segoe UI", sans-serif; fill: var(--va-tinta); }
+/* titulos */
+.va-h2 { font-size: 1.55rem; font-weight: 800; color: var(--va-tinta); margin: 1.3rem 0 .5rem;
+  display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }
+.va-h2 small { font-size: .92rem; font-weight: 500; color: var(--va-gris); }
+.va-h3 { font-size: .82rem; letter-spacing: .13em; text-transform: uppercase; font-weight: 800;
+  color: var(--va-oscuro); margin: .9rem 0 .35rem; padding-bottom: .3rem; border-bottom: 2px solid var(--va-oscuro); }
+.va-vacio { color: var(--va-gris-2); font-style: italic; }
+
+/* 1. nivel de riesgo */
+.va-riesgo { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; border-radius: 16px; overflow: hidden; margin-top: .6rem; }
+.va-riesgo .nivel { color: #fff; padding: 1.3rem 1.5rem 1.2rem; }
+.va-riesgo .k { font-size: .85rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 800; }
+.va-riesgo .nivel .v { font-size: 3.6rem; font-weight: 900; line-height: 1.05; margin: .25rem 0 .8rem; }
+.va-escala { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.va-escala span { height: 9px; border-radius: 5px; background: rgba(255,255,255,.3); }
+.va-escala span.on { background: #fff; }
+.va-escala-et { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; font-size: .74rem; margin-top: .3rem; opacity: .92; }
+.va-riesgo .porque { padding: 1.3rem 1.7rem; background: var(--va-suave); }
+.va-riesgo .porque .k { color: var(--va-oscuro); }
+.va-riesgo .frase { font-size: 1.35rem; font-weight: 700; color: var(--va-tinta); line-height: 1.38; margin: .35rem 0 .7rem; }
+.va-riesgo .res { font-size: 1rem; color: var(--va-texto); line-height: 1.55; margin: 0 0 .8rem; }
+.va-meta { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; font-size: .9rem; color: var(--va-gris); }
+.va-conf { background: var(--va-oscuro); color: #fff; font-weight: 700; border-radius: 999px; padding: .2rem .8rem; }
+.va-aviso { display: flex; gap: .7rem; align-items: center; border-left: 6px solid var(--va-oscuro); background: #f1f3f5;
+  padding: .75rem 1.1rem; font-weight: 600; color: var(--va-tinta); margin-top: .8rem; border-radius: 0 10px 10px 0; font-size: 1rem; }
+
+/* 2. que hacer ahora */
+.va-notif { display: flex; gap: .9rem; align-items: center; background: var(--va-oscuro); color: #fff;
+  border-radius: 12px; padding: .9rem 1.2rem; font-size: 1.08rem; margin: .3rem 0 .6rem; }
+.va-notif .ico { font-size: 1.5rem; }
+.va-notif.dudosa { background: #fff; color: var(--va-tinta); border: 2px solid var(--va-oscuro); }
+.va-ahora { list-style: none; counter-reset: n; margin: 0; padding: 0; }
+.va-ahora li { counter-increment: n; display: grid; grid-template-columns: 2.6rem 1fr; gap: .9rem;
+  padding: .8rem 0; border-bottom: 1px solid var(--va-linea); }
+.va-ahora li::before { content: counter(n); width: 2.3rem; height: 2.3rem; border-radius: 50%; background: var(--va-acento);
+  color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 1.1rem; }
+.va-ahora .acc { font-size: 1.2rem; font-weight: 700; color: var(--va-tinta); line-height: 1.35; }
+.va-ahora .det { font-size: .9rem; color: var(--va-gris); margin-top: .2rem; }
+.va-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.6rem; }
+.va-cols ul { margin: 0; padding-left: 1.15rem; }
+.va-cols li { font-size: .98rem; color: var(--va-texto); margin-bottom: .4rem; line-height: 1.45; }
+.va-tag { display: inline-block; font-size: .72rem; font-weight: 700; padding: .05rem .45rem; border-radius: 4px;
+  background: var(--va-suave); color: var(--va-oscuro); margin-left: .25rem; vertical-align: middle; white-space: nowrap; }
+.va-nota { color: var(--va-acento); font-weight: 800; font-size: .72em; margin-left: 1px; }
+
+/* diagrama del grafo (solo mientras corre, o al desplegar el resumen del proceso) */
+.va-grafo { background: #fff; border: 1px solid var(--va-linea); border-radius: 12px; padding: .2rem .6rem .1rem; }
+.va-grafo svg { width: 100%; height: auto; display: block; max-height: 140px; }
+.va-grafo-pie { display: flex; justify-content: space-between; gap: 1rem; font-size: .85rem; color: var(--va-gris); padding: 0 .4rem .35rem; }
+.va-grafo-pie b { color: var(--va-oscuro); }
+.va-nodo rect { fill: #fff; stroke: #9aa8a6; stroke-width: 1.5; }
+.va-nodo .n { font: 700 14.5px system-ui, "Segoe UI", sans-serif; fill: var(--va-tinta); }
 .va-nodo .e { font: 12.5px system-ui, "Segoe UI", sans-serif; fill: var(--va-gris); }
-.va-nodo.pensando rect { fill: var(--va-acento-suave); stroke: var(--va-acento); stroke-width: 2.5;
-  animation: va-pulso 1.3s ease-in-out infinite; }
-.va-nodo.pensando .e { fill: var(--va-acento-2); font-weight: 600; }
-.va-nodo.listo rect, .va-nodo.aprobado rect { fill: var(--va-acento); stroke: var(--va-acento); }
+.va-nodo.pensando rect { fill: var(--va-suave); stroke: var(--va-acento); stroke-width: 3; animation: va-pulso 1.3s ease-in-out infinite; }
+.va-nodo.pensando .e { fill: var(--va-oscuro); font-weight: 700; }
+.va-nodo.listo rect, .va-nodo.aprobado rect { fill: var(--va-oscuro); stroke: var(--va-oscuro); }
 .va-nodo.listo text, .va-nodo.aprobado text { fill: #fff; }
-.va-nodo.omitido rect { fill: var(--va-fondo); stroke-dasharray: 5 4; }
-.va-nodo.omitido text { fill: var(--va-gris-claro); }
-.va-nodo.error rect { fill: #fef2f2; stroke: #b91c1c; stroke-width: 2; }
-.va-nodo.error .e { fill: #b91c1c; font-weight: 600; }
-.va-nodo.pausa rect { fill: #fff; stroke: var(--va-acento); stroke-width: 2; stroke-dasharray: 7 4;
-  animation: va-hormigas 1s linear infinite; }
-.va-nodo.pausa .e { fill: var(--va-acento-2); font-weight: 600; }
-.va-flecha { stroke: #cbd5e1; stroke-width: 2; fill: none; }
-.va-punta { fill: #cbd5e1; }
+.va-nodo.omitido rect { fill: #f6f7f7; stroke-dasharray: 5 4; }
+.va-nodo.omitido text { fill: #9aa3a1; }
+.va-nodo.error rect { fill: #fef2f2; stroke: #b91c1c; stroke-width: 2.5; }
+.va-nodo.error .e { fill: #b91c1c; font-weight: 700; }
+.va-nodo.pausa rect { fill: #fff; stroke: var(--va-acento); stroke-width: 2.5; stroke-dasharray: 7 4; animation: va-hormigas 1s linear infinite; }
+.va-nodo.pausa .e { fill: var(--va-oscuro); font-weight: 700; }
+.va-flecha { stroke: #b8c2c0; stroke-width: 2; fill: none; }
+.va-punta { fill: #b8c2c0; }
 .va-flecha.activa { stroke: var(--va-acento); }
 .va-punta.activa { fill: var(--va-acento); }
 .va-flecha.vuelta { stroke-dasharray: 5 5; }
-.va-rotulo { font: 12px system-ui, "Segoe UI", sans-serif; fill: var(--va-gris-claro); }
-.va-rotulo.activa { fill: var(--va-acento-2); font-weight: 600; }
+.va-rotulo { font: 12px system-ui, "Segoe UI", sans-serif; fill: #8a9593; }
+.va-rotulo.activa { fill: var(--va-oscuro); font-weight: 700; }
 @keyframes va-pulso { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: .25; } }
 @keyframes va-hormigas { to { stroke-dashoffset: -22; } }
 
-/* tarjetas */
-.va-carta { background: var(--va-carta); border: 1px solid var(--va-borde); border-radius: 14px;
-  padding: 1rem 1.15rem; height: 100%; }
-.va-rot { font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--va-gris);
-  font-weight: 700; margin-bottom: .45rem; }
-.va-resumen p { font-size: 1.02rem; line-height: 1.55; color: var(--va-tinta); margin: 0 0 .6rem; }
-.va-resumen .just { font-size: .92rem; color: #334155; }
-.va-meta { font-size: .78rem; color: var(--va-gris); margin-top: .4rem; }
-.va-nota { color: var(--va-acento); font-weight: 700; font-size: .72em; margin-left: 1px; }
-.va-pend { color: var(--va-gris-claro); font-style: italic; font-size: .88rem; }
-
-/* medidor */
-.va-medidor { text-align: center; }
-.va-medidor svg { width: 100%; max-width: 270px; height: auto; }
-.va-medidor .nivel { font-size: 1.9rem; font-weight: 800; letter-spacing: .05em; line-height: 1; }
-.va-medidor .sub { font-size: .78rem; color: var(--va-gris); margin-top: .3rem; }
-
-/* One Health */
-.va-oh { border-top: 4px solid var(--va-acento); }
-.va-oh .cab { display: flex; align-items: center; justify-content: space-between; }
-.va-oh .dim { font-weight: 700; font-size: 1.02rem; color: var(--va-tinta); }
-.va-oh .ico { font-size: 1.35rem; margin-right: .35rem; }
-.va-oh .num { font-size: 1.7rem; font-weight: 800; color: var(--va-acento-2); line-height: 1; }
-.va-oh .num small { font-size: .72rem; font-weight: 600; color: var(--va-gris); margin-left: .25rem; }
-.va-oh ul { margin: .55rem 0 0; padding-left: 1.05rem; }
-.va-oh li { font-size: .86rem; color: #334155; margin-bottom: .25rem; }
-.va-oh .nota-ag { font-size: .82rem; color: var(--va-gris); margin-top: .5rem; }
-
-/* listas del informe */
-.va-item { border: 1px solid var(--va-borde); border-left: 4px solid var(--va-acento-borde);
-  border-radius: 10px; padding: .6rem .8rem; margin-bottom: .5rem; background: var(--va-carta); }
-.va-item b { color: var(--va-tinta); font-weight: 600; }
-.va-item .pie { margin-top: .3rem; display: flex; gap: .35rem; flex-wrap: wrap; }
-.va-pill { font-size: .72rem; border-radius: 999px; padding: .08rem .55rem; border: 1px solid var(--va-borde);
-  color: #334155; background: var(--va-fondo); white-space: nowrap; }
-.va-pill.acento { background: var(--va-acento-suave); border-color: var(--va-acento-borde); color: var(--va-acento-2); }
-.va-pill.fuerte { background: var(--va-acento); border-color: var(--va-acento); color: #fff; }
-.va-riesgo { color: #fff; border: none; font-weight: 700; }
-.va-sec { font-weight: 700; color: var(--va-tinta); margin: .9rem 0 .45rem; font-size: 1rem; }
-.va-sec span { color: var(--va-gris); font-weight: 500; font-size: .85rem; margin-left: .3rem; }
-.va-lista { margin: 0; padding-left: 1.1rem; }
-.va-lista li { margin-bottom: .3rem; color: #334155; font-size: .92rem; }
-
-/* inicio */
-.va-hero { background: linear-gradient(135deg, var(--va-acento-suave), #fff 70%);
-  border: 1px solid var(--va-acento-borde); border-radius: 16px; padding: 1.3rem 1.4rem; }
-.va-hero h3 { margin: 0 0 .3rem; color: var(--va-tinta); font-size: 1.3rem; }
-.va-hero p { color: #334155; margin: 0 0 .9rem; }
-.va-pasos { display: flex; gap: .8rem; flex-wrap: wrap; }
-.va-paso { flex: 1 1 180px; background: #fff; border: 1px solid var(--va-borde); border-radius: 12px; padding: .7rem .8rem; font-size: .86rem; color: #334155; }
-.va-paso b { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
-  background: var(--va-acento); color: #fff; font-size: .75rem; margin-right: .4rem; }
-.va-ficha { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .7rem; }
-.va-dato .k { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--va-gris); font-weight: 700; }
-.va-dato .v { font-size: 1.05rem; font-weight: 600; color: var(--va-tinta); }
-.va-fila-pills { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .35rem; }
-
-/* comparacion */
+/* modo equipo: comparacion */
+.va-carta { background: #fff; border: 1px solid var(--va-linea); border-radius: 12px; padding: 1rem 1.15rem; height: 100%; }
 .va-ver .cab { display: flex; justify-content: space-between; align-items: baseline; }
-.va-ver .id { font-size: 1.5rem; font-weight: 800; color: var(--va-acento-2); }
-.va-ver .nom { font-size: .85rem; color: var(--va-gris); }
+.va-ver .id { font-size: 1.5rem; font-weight: 800; color: var(--va-oscuro); }
+.va-ver .nom { font-size: .88rem; color: var(--va-gris); }
 .va-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin: .7rem 0; }
-.va-kpi { background: var(--va-fondo); border-radius: 10px; padding: .45rem .6rem; }
+.va-kpi { background: var(--va-suave); border-radius: 8px; padding: .45rem .6rem; }
 .va-kpi .k { font-size: .7rem; color: var(--va-gris); text-transform: uppercase; letter-spacing: .08em; }
 .va-kpi .v { font-size: 1.15rem; font-weight: 700; color: var(--va-tinta); }
-.va-ver .res { font-size: .86rem; color: #334155; display: -webkit-box; -webkit-line-clamp: 6;
-  -webkit-box-orient: vertical; overflow: hidden; }
+.va-ver .res { font-size: .88rem; color: var(--va-texto); display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
 .va-ver.falla { border-top: 4px solid #b91c1c; }
+.va-pill { display: inline-block; font-size: .75rem; font-weight: 800; border-radius: 999px; padding: .1rem .6rem; color: #fff; }
+.va-fila-pills { display: flex; gap: .35rem; flex-wrap: wrap; margin: .2rem 0 .4rem; }
 
 /* barra de firma fija abajo: Streamlit envuelve el contenedor en un stLayoutWrapper de su
    mismo alto, asi que lo "sticky" tiene que ser el envoltorio */
 div[data-testid="stLayoutWrapper"]:has(> .st-key-firma) { position: sticky; bottom: 0; z-index: 60; }
-.st-key-firma { background: #fff;
-  border: 1px solid var(--va-borde); border-top: 3px solid var(--va-acento); border-radius: 14px 14px 0 0;
-  padding: .7rem 1rem .8rem; box-shadow: 0 -8px 24px rgba(15, 23, 42, .08); margin-top: 1rem; }
-.st-key-firma .va-rot { margin-bottom: .1rem; }
+.st-key-firma { background: #fff; border-top: 4px solid var(--va-oscuro); border-radius: 14px 14px 0 0;
+  padding: .7rem 1.1rem .85rem; box-shadow: 0 -10px 28px rgba(11, 18, 32, .14); margin-top: 1.2rem; }
+.va-firma-t { font-size: .85rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; color: var(--va-oscuro); }
+@media (max-width: 800px) { .va-riesgo { grid-template-columns: 1fr; } }
 </style>
 """
 
 
-# ---------- encabezado ----------
-
-def encabezado(caso: dict, escenario: str, modo: str, aviso: str) -> str:
-    lugar = ", ".join(x for x in (caso.get("comuna"), caso.get("region")) if x)
-    chips = [("Escenario", escenario), ("Lugar", lugar), ("Fecha", caso.get("fecha_evento")),
-             ("Especie", caso.get("especie"))]
-    chips_html = "".join(f'<span class="va-chip"><i>{esc(k)}</i>{esc(v)}</span>' for k, v in chips if v)
-    return (f'<div class="va-enc"><div class="va-marca"><div class="va-logo">VA</div>'
-            f'<div><b>VET·AGENT</b><span>Vigilancia epidemiológica · One Health</span></div></div>'
-            f'<div class="va-chips">{chips_html}</div><span class="va-modo">{esc(modo)}</span></div>'
-            f'<div class="va-aviso">{esc(aviso)}</div>')
+def encabezado(modo: str, nota: str) -> str:
+    return (f'<div class="va-banda"><div class="logo">VA</div><div class="t"><b>VET·AGENT</b>'
+            f'<span>Apoyo a la decisión epidemiológica · One Health</span></div>'
+            f'<span class="modo">{esc(modo)}</span><div class="nota">{esc(nota)}</div></div>')
 
 
-# ---------- diagrama del grafo ----------
+def h2(titulo: str, sub: str = "") -> str:
+    return f'<div class="va-h2">{esc(titulo)}' + (f"<small>{esc(sub)}</small>" if sub else "") + "</div>"
+
+
+def h3(titulo: str) -> str:
+    return f'<div class="va-h3">{esc(titulo)}</div>'
+
+
+# ====================== diagrama del grafo ======================
 
 def grafo_inicial() -> dict:
     """Estado del diagrama antes de analizar: todos los nodos en espera."""
     return {"nodos": {n: {"estado": "espera", "segundos": None} for n in NODOS},
-            "ronda": 0, "debate": False, "rechazo": False, "nota": "Esperando un caso para analizar"}
+            "ronda": 0, "debate": False, "rechazo": False, "debates": 0, "rechazos": 0, "nota": ""}
 
 
 def siguiente_nodo(nodo: str, cambios: dict | None) -> str | None:
@@ -246,7 +371,7 @@ def estado_nodo(n: dict) -> tuple[str, str]:
 
 
 def _punta(x: float, y: float, direccion: str, clase: str) -> str:
-    # triangulos dibujados a mano (los <marker> de SVG no siempre pasan el filtro de st.html)
+    # triangulos dibujados a mano (sin <marker>, que no siempre sobrevive al filtro de HTML)
     p = {"der": f"{x},{y} {x - 9},{y - 5} {x - 9},{y + 5}",
          "arr": f"{x},{y} {x - 5},{y + 9} {x + 5},{y + 9}",
          "aba": f"{x},{y} {x - 5},{y - 9} {x + 5},{y - 9}"}[direccion]
@@ -255,84 +380,60 @@ def _punta(x: float, y: float, direccion: str, clase: str) -> str:
 
 def diagrama_grafo(vista: dict) -> str:
     """SVG del grafo: los 5 nodos, la flecha de debate del moderador y la del rechazo."""
-    nodos, ancho, alto, y = vista["nodos"], 168, 62, 52
+    nodos, ancho, alto, y = vista["nodos"], 168, 58, 46
     xs = [8 + i * 204 for i in range(len(NODOS))]
     centro = {n: x + ancho / 2 for n, x in zip(NODOS, xs)}
     partes = []
-
-    # flechas de la cadena
     for i in range(len(NODOS) - 1):
-        a, b = NODOS[i], NODOS[i + 1]
-        activa = " activa" if nodos[a]["estado"] in ("listo", "omitido") else ""
+        activa = " activa" if nodos[NODOS[i]]["estado"] in ("listo", "omitido") else ""
         x1, x2, ym = xs[i] + ancho, xs[i + 1], y + alto / 2
         partes.append(f'<line class="va-flecha{activa}" x1="{x1}" y1="{ym}" x2="{x2 - 2}" y2="{ym}"/>')
         partes.append(_punta(x2, ym, "der", activa))
 
-    # ronda de debate: moderador -> climatico, por abajo
     act = " activa" if vista.get("debate") else ""
     xm, xc, yb = centro["moderador"], centro["climatico"], y + alto
-    partes.append(f'<path class="va-flecha vuelta{act}" d="M{xm} {yb} V{yb + 30} H{xc} V{yb + 4}"/>')
+    partes.append(f'<path class="va-flecha vuelta{act}" d="M{xm} {yb} V{yb + 26} H{xc} V{yb + 4}"/>')
     partes.append(_punta(xc, yb + 1, "arr", act))
-    partes.append(f'<text class="va-rotulo{act}" x="{(xm + xc) / 2}" y="{yb + 26}" text-anchor="middle">'
+    partes.append(f'<text class="va-rotulo{act}" x="{(xm + xc) / 2}" y="{yb + 22}" text-anchor="middle">'
                   f'ronda de debate: el moderador pregunta a un agente</text>')
 
-    # rechazo: revision humana -> moderador, por arriba
     act = " activa" if vista.get("rechazo") else ""
     xh, xm = centro["revision_humana"], centro["moderador"]
-    partes.append(f'<path class="va-flecha vuelta{act}" d="M{xh} {y} V{y - 30} H{xm} V{y - 4}"/>')
+    partes.append(f'<path class="va-flecha vuelta{act}" d="M{xh} {y} V{y - 26} H{xm} V{y - 4}"/>')
     partes.append(_punta(xm, y - 1, "aba", act))
-    partes.append(f'<text class="va-rotulo{act}" x="{(xh + xm) / 2}" y="{y - 36}" text-anchor="middle">'
+    partes.append(f'<text class="va-rotulo{act}" x="{(xh + xm) / 2}" y="{y - 31}" text-anchor="middle">'
                   f'rechazo con comentario</text>')
 
     for nodo, x in zip(NODOS, xs):
         clase, texto = estado_nodo(nodos[nodo])
         partes.append(
-            f'<g class="va-nodo {clase}"><rect x="{x}" y="{y}" width="{ancho}" height="{alto}" rx="12"/>'
-            f'<text class="n" x="{x + 14}" y="{y + 26}">{ICONO_NODO[nodo]} {esc(NOMBRE_NODO[nodo])}</text>'
-            f'<text class="e" x="{x + 14}" y="{y + 47}">{esc(texto)}</text></g>')
+            f'<g class="va-nodo {clase}"><rect x="{x}" y="{y}" width="{ancho}" height="{alto}" rx="11"/>'
+            f'<text class="n" x="{x + 13}" y="{y + 24}">{ICONO_NODO[nodo]} {esc(NOMBRE_NODO[nodo])}</text>'
+            f'<text class="e" x="{x + 13}" y="{y + 44}">{esc(texto)}</text></g>')
 
     ronda = vista.get("ronda") or 0
     pie_der = f"Ronda del moderador: <b>{ronda}</b>" if ronda else ""
-    return (f'<div class="va-grafo"><svg viewBox="0 0 1000 158" role="img" '
+    return (f'<div class="va-grafo"><svg viewBox="0 0 1000 140" role="img" '
             f'aria-label="Avance de los agentes">{"".join(partes)}</svg>'
             f'<div class="va-grafo-pie"><span>{esc(vista.get("nota", ""))}</span><span>{pie_der}</span></div></div>')
 
 
-# ---------- medidor de riesgo ----------
-
-def _punto(angulo: float, r: float, cx: float = 110, cy: float = 108) -> tuple[float, float]:
-    # angulo en grados medido desde la izquierda (0) hasta la derecha (180), por arriba
-    a = math.radians(angulo)
-    return round(cx - r * math.cos(a), 2), round(cy - r * math.sin(a), 2)
-
-
-def medidor(nivel) -> str:
-    """Medidor semicircular con los 4 niveles; el del informe en color pleno y la aguja apuntandolo."""
-    nivel = str(nivel or "").lower()
-    arcos = []
-    for i, n in enumerate(NIVELES):
-        (x1, y1), (x2, y2) = _punto(i * 45 + 1.5, 82), _punto((i + 1) * 45 - 1.5, 82)
-        opacidad = 1 if n == nivel else .18
-        arcos.append(f'<path d="M{x1} {y1} A82 82 0 0 1 {x2} {y2}" fill="none" stroke="{COLOR_RIESGO[n]}" '
-                     f'stroke-width="20" stroke-opacity="{opacidad}"/>')
-    if nivel in NIVELES:
-        xa, ya = _punto(NIVELES.index(nivel) * 45 + 22.5, 62)
-        aguja = (f'<line x1="110" y1="108" x2="{xa}" y2="{ya}" stroke="#0f172a" stroke-width="4" '
-                 f'stroke-linecap="round"/><circle cx="110" cy="108" r="7" fill="#0f172a"/>')
-        color, texto, sub = COLOR_RIESGO[nivel], nivel_texto(nivel), "Nivel de riesgo global"
-    else:
-        aguja, color, texto, sub = '<circle cx="110" cy="108" r="7" fill="#cbd5e1"/>', "#94a3b8", "PENDIENTE", \
-            "El informe aún no asigna un nivel"
-    marcas = "".join(
-        f'<text x="{_punto(i * 45 + 22.5, 104)[0]}" y="{_punto(i * 45 + 22.5, 104)[1] + 4}" text-anchor="middle" '
-        f'style="font: 10px system-ui; fill: #94a3b8">{n.replace("_", " ")}</text>' for i, n in enumerate(NIVELES))
-    return (f'<div class="va-carta va-medidor"><div class="va-rot">Riesgo</div>'
-            f'<svg viewBox="-18 0 256 124" role="img" aria-label="Nivel de riesgo {esc(texto)}">{"".join(arcos)}'
-            f'{marcas}{aguja}</svg><div class="nivel" style="color:{color}">{texto}</div>'
-            f'<div class="sub">{esc(sub)}</div></div>')
+def resumen_proceso(vista: dict, segundos_analisis, segundos_revision) -> str:
+    """Una linea para cuando el analisis termino: "4 agentes · 2 min 31 s · 1 ronda de debate"."""
+    partes = ["✓ 4 agentes"]
+    if segundos_analisis is not None:
+        partes.append(duracion(segundos_analisis))
+    debates = vista.get("debates", 0)
+    partes.append("sin rondas de debate" if not debates else
+                  f"{debates} ronda{'s' if debates > 1 else ''} de debate")
+    rechazos = vista.get("rechazos", 0)
+    if rechazos:
+        partes.append(f"{rechazos} revisión{'es' if rechazos > 1 else ''} por rechazo"
+                      + (f" (la última, {duracion(segundos_revision)})" if segundos_revision is not None else ""))
+    return " · ".join(partes)
 
 
-# ---------- notas al pie (citas) ----------
+# ====================== informe: apoyo a la decision ======================
 
 def numerar_citas(informe: dict) -> dict[str, int]:
     """doc_id -> numero de nota, en el orden en que aparecen en el informe."""
@@ -368,93 +469,142 @@ def indice_evidencia(resultados: dict) -> dict[str, dict]:
     return indice
 
 
-# ---------- bloques del informe ----------
-
-def pendiente(texto: str) -> str:
-    return f'<div class="va-pend">{esc(texto)}</div>'
+ORDEN_CONFIANZA = ["baja", "media", "alta"]
 
 
-def resumen(informe: dict, meta: str, sin_dato: str) -> str:
-    cuerpo = ""
-    if informe.get("resumen_ejecutivo"):
-        cuerpo += f'<p>{esc(informe["resumen_ejecutivo"])}</p>'
-    if informe.get("justificacion_riesgo"):
-        cuerpo += f'<p class="just"><b>Por qué este nivel:</b> {esc(informe["justificacion_riesgo"])}</p>'
-    return (f'<div class="va-carta va-resumen"><div class="va-rot">Resumen ejecutivo</div>'
-            f'{cuerpo or pendiente(sin_dato)}<div class="va-meta">{esc(meta)}</div></div>')
+def confianza_global(informe: dict, resultados: dict) -> str | None:
+    """La confianza que mas se repite en los riesgos del informe (o, si no hay, en los agentes).
 
-
-def tarjeta_one_health(dimension: str, titulo: str, icono: str, riesgos: list, notas_agentes: list[tuple[str, str]],
-                       numeros: dict[str, int]) -> str:
-    """Tarjeta de una dimension: cuantos riesgos del informe caen en ella y cuales son.
-
-    Si el informe no trae riesgos de esa dimension, muestra lo que dijeron los agentes de ella.
+    En un empate gana la mas baja: ante la duda, mejor no sobrestimar.
     """
-    propios = [como_dict(r, "riesgo") for r in riesgos]
-    propios = [r for r in propios if str(r.get("dimension_one_health", "")).lower() == dimension]
-    if propios:
-        cuerpo = "<ul>" + "".join(
-            f'<li>{esc(r.get("riesgo", ""))}{sup(r.get("evidencia"), numeros)}'
-            + (f' <span class="va-pill">confianza {esc(r["confianza"])}</span>' if r.get("confianza") else "")
-            + "</li>" for r in propios[:3]) + "</ul>"
-        if len(propios) > 3:
-            cuerpo += f'<div class="nota-ag">y {len(propios) - 3} más en la pestaña Informe.</div>'
-    elif notas_agentes:
-        cuerpo = "".join(f'<div class="nota-ag"><b>{esc(a)}:</b> {esc(t)}</div>' for a, t in notas_agentes)
-    else:
-        cuerpo = '<div class="nota-ag">Sin riesgos identificados en esta dimensión.</div>'
-    plural = "riesgo" if len(propios) == 1 else "riesgos"
-    return (f'<div class="va-carta va-oh"><div class="cab"><span class="dim"><span class="ico">{icono}</span>'
-            f'{esc(titulo)}</span><span class="num">{len(propios)}<small>{plural}</small></span></div>{cuerpo}</div>')
+    valores = [str(como_dict(r, "riesgo").get("confianza", "")).lower() for r in informe.get("riesgos_identificados") or []]
+    valores = [v for v in valores if v in ORDEN_CONFIANZA]
+    if not valores:
+        valores = [str((s or {}).get("confianza", "")).lower() for s in (resultados or {}).values()]
+        valores = [v for v in valores if v in ORDEN_CONFIANZA]
+    if not valores:
+        return None
+    cuenta = Counter(valores)
+    return max(cuenta, key=lambda v: (cuenta[v], -ORDEN_CONFIANZA.index(v)))
 
 
-ORDEN_PRIORIDAD = {"inmediata": 0, "corto_plazo": 1, "preventiva": 2}
+def primera_frase(texto) -> str:
+    texto = str(texto or "").strip()
+    corte = re.search(r"[.!?](\s|$)", texto)
+    return texto[:corte.end()].strip() if corte else texto
 
 
-def lista_riesgos(riesgos: list, numeros: dict[str, int]) -> str:
-    items = []
-    for r in riesgos:
-        r = como_dict(r, "riesgo")
-        pills = "".join(f'<span class="va-pill{c}">{esc(t)}</span>' for t, c in (
-            (r.get("dimension_one_health"), " acento"), (f'confianza {r["confianza"]}' if r.get("confianza") else "", ""))
-            if t)
-        items.append(f'<div class="va-item"><b>{esc(r.get("riesgo", ""))}</b>{sup(r.get("evidencia"), numeros)}'
-                     f'<div class="pie">{pills}</div></div>')
-    return "".join(items)
+def bloque_riesgo(informe: dict, confianza: str | None, meta: str, sin_dato: str) -> str:
+    """Lo primero que se lee: el nivel de riesgo grande, una frase de por que y la confianza."""
+    nivel = str(informe.get("nivel_riesgo_global") or "").lower()
+    color = COLOR_RIESGO.get(nivel, "#4b5563")
+    escala = "".join(f'<span class="{"on" if n == nivel else ""}"></span>' for n in NIVELES)
+    etiquetas = "".join(f"<span>{n.replace('_', ' ')}</span>" for n in NIVELES)
+    frase = primera_frase(informe.get("justificacion_riesgo")) or primera_frase(informe.get("resumen_ejecutivo"))
+    resumen = informe.get("resumen_ejecutivo") or ""
+    meta_html = (f'<span class="va-conf">Confianza {esc(confianza)}</span>' if confianza else "") + \
+        (f"<span>{esc(meta)}</span>" if meta else "")
+    return (f'<div class="va-riesgo"><div class="nivel" style="background:{color}">'
+            f'<div class="k">Nivel de riesgo</div><div class="v">{nivel_texto(nivel) or "SIN NIVEL"}</div>'
+            f'<div class="va-escala">{escala}</div><div class="va-escala-et">{etiquetas}</div></div>'
+            f'<div class="porque"><div class="k">Por qué</div>'
+            + (f'<p class="frase">{esc(frase)}</p>' if frase else f'<p class="frase va-vacio">{esc(sin_dato)}</p>')
+            + (f'<p class="res">{esc(resumen)}</p>' if resumen and resumen.strip() != frase else "")
+            + f'<div class="va-meta">{meta_html}</div></div></div>')
 
 
-def lista_recomendaciones(recomendaciones: list, numeros: dict[str, int]) -> str:
-    recs = sorted((como_dict(r, "accion") for r in recomendaciones),
-                  key=lambda r: ORDEN_PRIORIDAD.get(str(r.get("prioridad", "")), 9))
-    items = []
-    for r in recs:
-        prioridad = str(r.get("prioridad", "")).replace("_", " ")
-        pills = []
-        if prioridad:
-            pills.append(f'<span class="va-pill{" fuerte" if r.get("prioridad") == "inmediata" else " acento"}">'
-                         f'{esc(prioridad)}</span>')
-        if r.get("responsable_sugerido"):
-            pills.append(f'<span class="va-pill">responsable: {esc(r["responsable_sugerido"])}</span>')
-        if r.get("requiere_autoridad"):
-            pills.append('<span class="va-pill">requiere autoridad sanitaria</span>')
-        items.append(f'<div class="va-item"><b>{esc(r.get("accion", ""))}</b>{sup(r.get("fuentes"), numeros)}'
-                     f'<div class="pie">{"".join(pills)}</div></div>')
-    return "".join(items)
+def aviso(texto: str) -> str:
+    return f'<div class="va-aviso"><span>⚠</span><span>{esc(texto)}</span></div>'
 
 
-def lista_simple(items: list) -> str:
-    return '<ul class="va-lista">' + "".join(f"<li>{esc(i)}</li>" for i in items) + "</ul>"
+def notificacion(resultados: dict) -> dict:
+    """Si el caso es de notificacion obligatoria y a quien, segun el agente de bioseguridad."""
+    bio = (resultados or {}).get("bioseguridad") or {}
+    autoridades = bio.get("autoridad_competente") or []
+    if isinstance(autoridades, str):
+        autoridades = [autoridades]
+    return {"estado": str(bio.get("notificacion_obligatoria") or "").lower() or None,
+            "autoridades": [str(a) for a in autoridades]}
 
 
-def seccion(titulo: str, contenido_html: str, cantidad: int | None, sin_dato: str) -> str:
-    extra = f"<span>{cantidad}</span>" if cantidad else ""
-    return f'<div class="va-sec">{esc(titulo)}{extra}</div>{contenido_html or pendiente(sin_dato)}'
+def bloque_notificacion(noti: dict) -> str:
+    quien = ", ".join(noti["autoridades"]) or "la autoridad competente"
+    if noti["estado"] == "si":
+        return (f'<div class="va-notif"><span class="ico">📣</span><span><b>Notificación obligatoria:</b> '
+                f'avisar a {esc(quien)}.</span></div>')
+    if noti["estado"] == "no":
+        return (f'<div class="va-notif dudosa"><span class="ico">📣</span><span>Según la evidencia, '
+                f'<b>no es de notificación obligatoria</b>. Ante la duda, consulta a {esc(quien)}.</span></div>')
+    if noti["estado"]:
+        return (f'<div class="va-notif dudosa"><span class="ico">📣</span><span><b>Notificación obligatoria: '
+                f'no determinable</b> con la evidencia recuperada. Consulta a {esc(quien)}.</span></div>')
+    return ""
 
 
-def pill_riesgo(nivel) -> str:
-    nivel = str(nivel or "").lower()
-    color = COLOR_RIESGO.get(nivel, "#94a3b8")
-    return f'<span class="va-pill va-riesgo" style="background:{color}">{nivel_texto(nivel) or "SIN NIVEL"}</span>'
+def _detalle_recomendacion(r: dict) -> str:
+    partes = []
+    if r.get("responsable_sugerido"):
+        partes.append(f"Responsable: {esc(r['responsable_sugerido'])}")
+    if r.get("requiere_autoridad"):
+        partes.append("requiere autorización o ejecución de la autoridad sanitaria")
+    return " · ".join(partes)
+
+
+def recomendaciones_por_prioridad(recomendaciones: list) -> dict[str, list[dict]]:
+    grupos = {"inmediata": [], "corto_plazo": [], "preventiva": [], "otra": []}
+    for r in recomendaciones or []:
+        r = como_dict(r, "accion")
+        grupos.get(str(r.get("prioridad", "")).lower(), grupos["otra"]).append(r)
+    return grupos
+
+
+def acciones_inmediatas(inmediatas: list[dict], numeros: dict[str, int], sin_dato: str) -> str:
+    if not inmediatas:
+        return f'<p class="va-vacio">{esc(sin_dato)}</p>'
+    items = "".join(f'<li><div><div class="acc">{esc(r.get("accion", ""))}{sup(r.get("fuentes"), numeros)}</div>'
+                    f'<div class="det">{_detalle_recomendacion(r)}</div></div></li>' for r in inmediatas)
+    return f'<ol class="va-ahora">{items}</ol>'
+
+
+def _lista(items, vacio: str) -> str:
+    if not items:
+        return f'<p class="va-vacio">{esc(vacio)}</p>'
+    return "<ul>" + "".join(f"<li>{i}</li>" for i in items) + "</ul>"
+
+
+def columnas(bloques: list[tuple[str, list[str], str]]) -> str:
+    """Columnas con titulo y lista; cada item ya viene como HTML escapado."""
+    return '<div class="va-cols">' + "".join(
+        f"<div>{h3(titulo)}{_lista(items, vacio)}</div>" for titulo, items, vacio in bloques) + "</div>"
+
+
+def items_recomendacion(recs: list[dict], numeros: dict[str, int]) -> list[str]:
+    return [f'{esc(r.get("accion", ""))}{sup(r.get("fuentes"), numeros)}'
+            + (' <span class="va-tag">autoridad</span>' if r.get("requiere_autoridad") else "") for r in recs]
+
+
+def riesgos_one_health(riesgos: list, numeros: dict[str, int]) -> str:
+    """Los riesgos del informe en 3 columnas compactas: animal, humana y ambiental."""
+    bloques = []
+    todos = [como_dict(r, "riesgo") for r in riesgos or []]
+    for dim, titulo, icono in DIMENSIONES:
+        propios = [r for r in todos if str(r.get("dimension_one_health", "")).lower() == dim]
+        items = [f'{esc(r.get("riesgo", ""))}{sup(r.get("evidencia"), numeros)}'
+                 + (f' <span class="va-tag">confianza {esc(r["confianza"])}</span>' if r.get("confianza") else "")
+                 for r in propios]
+        bloques.append((f"{icono} {titulo} · {len(propios)}", items, "Sin riesgos en esta dimensión."))
+    sin_dim = [r for r in todos if str(r.get("dimension_one_health", "")).lower() not in {d for d, _, _ in DIMENSIONES}]
+    if sin_dim:
+        bloques.append((f"Otros · {len(sin_dim)}", [esc(r.get("riesgo", "")) for r in sin_dim], ""))
+    return columnas(bloques)
+
+
+def para_decidir_mejor(informe: dict, sin_dato: str) -> str:
+    return columnas([
+        ("Falta información", [esc(i) for i in informe.get("informacion_faltante") or []], sin_dato),
+        ("Diagnósticos a descartar", [esc(i) for i in informe.get("hipotesis_alternativas") or []], sin_dato),
+        ("Incertidumbres", [esc(i) for i in informe.get("incertidumbres_y_limitaciones") or []], sin_dato),
+    ])
 
 
 def resumen_agente(agente: str, salida: dict) -> str:
@@ -462,7 +612,7 @@ def resumen_agente(agente: str, salida: dict) -> str:
     campos = {"climatico": [("riesgo ambiental", "nivel_riesgo_ambiental"), ("ventana", "ventana_temporal")],
               "diagnostico": [("presencia", "probabilidad_presencia"), ("confirmar", "requiere_confirmacion")],
               "bioseguridad": [("notificación", "notificacion_obligatoria"), ("autoridad", "autoridad_competente")]}
-    pills = []
+    partes = []
     for nombre, clave in campos.get(agente, []) + [("confianza", "confianza")]:
         valor = salida.get(clave)
         if valor in (None, "", []):
@@ -471,59 +621,17 @@ def resumen_agente(agente: str, salida: dict) -> str:
             valor = "sí" if valor else "no"
         elif isinstance(valor, list):
             valor = ", ".join(map(str, valor))
-        pills.append(f'<span class="va-pill acento">{esc(nombre)}: {esc(str(valor).replace("_", " "))}</span>')
-    return f'<div class="va-fila-pills">{"".join(pills)}</div>'
+        partes.append(f'<span class="va-tag">{esc(nombre)}: {esc(str(valor).replace("_", " "))}</span>')
+    return f'<div class="va-fila-pills">{"".join(partes)}</div>'
 
 
-# ---------- pantalla de inicio ----------
+# ====================== modo equipo: comparacion B1 / B2 / B3 ======================
 
-HERO = """<div class="va-hero"><h3>Listo para analizar</h3>
-<p>Cuatro agentes especializados revisan el caso con evidencia documental y un especialista humano firma el informe.</p>
-<div class="va-pasos">
-<div class="va-paso"><b>1</b>Elige un escenario o edita el caso en el panel izquierdo.</div>
-<div class="va-paso"><b>2</b>Presiona <i>Analizar</i> y mira trabajar a los agentes en el diagrama.</div>
-<div class="va-paso"><b>3</b>Revisa el informe, apruébalo o recházalo con un comentario y descárgalo.</div>
-</div></div>"""
+def pill_riesgo(nivel) -> str:
+    nivel = str(nivel or "").lower()
+    color = COLOR_RIESGO.get(nivel, "#6b7280")
+    return f'<span class="va-pill" style="background:{color}">{nivel_texto(nivel) or "SIN NIVEL"}</span>'
 
-
-def ficha_caso(caso: dict) -> str:
-    def num(v, sufijo=""):
-        if v in (None, ""):
-            return "—"
-        try:
-            n = float(v)
-            # 40000 -> "40 000"; los decimales se dejan como vienen (12.0 %)
-            v = f"{int(n):,}".replace(",", " ") if n.is_integer() and abs(n) >= 1000 else v
-        except (TypeError, ValueError):
-            pass
-        return f"{v}{sufijo}"
-
-    datos = [("Animales", num(caso.get("n_animales"))), ("Mortalidad", num(caso.get("mortalidad_pct"), " %")),
-             ("Morbilidad", num(caso.get("morbilidad_pct"), " %"))]
-    clima = caso.get("clima") or {}
-    datos += [("Temperatura", num(clima.get("temperatura_media_c"), " °C")),
-              ("Humedad", num(clima.get("humedad_relativa_pct"), " %")),
-              ("Precipitación", num(clima.get("precipitacion_mm"), " mm"))]
-    grid = "".join(f'<div class="va-dato"><div class="k">{esc(k)}</div><div class="v">{esc(v)}</div></div>'
-                   for k, v in datos)
-    signos = "".join(f'<span class="va-pill">{esc(s)}</span>' for s in caso.get("signos_clinicos") or [])
-    lab = "".join(
-        f'<span class="va-pill acento">{esc(r.get("prueba", ""))}: {esc(r.get("resultado", ""))}</span>'
-        for r in (caso.get("resultados_laboratorio") or []) if isinstance(r, dict))
-    extra = ""
-    if signos:
-        extra += f'<div class="va-rot" style="margin-top:.9rem">Signos clínicos</div><div class="va-fila-pills">{signos}</div>'
-    if lab:
-        extra += f'<div class="va-rot" style="margin-top:.9rem">Laboratorio</div><div class="va-fila-pills">{lab}</div>'
-    sistema = caso.get("sistema_productivo")
-    titulo = esc(caso.get("especie") or "Caso") + (f' <span style="color:#64748b;font-weight:400">· {esc(sistema)}</span>'
-                                                    if sistema else "")
-    return (f'<div class="va-carta"><div class="va-rot">Ficha del caso</div>'
-            f'<div style="font-weight:600;margin-bottom:.8rem">{titulo}</div>'
-            f'<div class="va-ficha">{grid}</div>{extra}</div>')
-
-
-# ---------- comparacion B1 / B2 / B3 ----------
 
 def archivos_comparacion(carpeta: pathlib.Path) -> dict[str, pathlib.Path]:
     """Los comparacion*.csv de resultados/, con su ruta relativa como nombre (el de la raiz primero)."""
@@ -567,13 +675,12 @@ def leer_comparacion(ruta: pathlib.Path) -> list[dict]:
 
 def tarjeta_version(version: str, fila: dict | None) -> str:
     nombre = VERSIONES.get(version, version)
-    cab = (f'<div class="cab"><span class="id">{esc(version)}</span>'
-           f'<span class="nom">{esc(nombre)}</span></div>')
+    cab = f'<div class="cab"><span class="id">{esc(version)}</span><span class="nom">{esc(nombre)}</span></div>'
     if fila is None:
-        return f'<div class="va-carta va-ver">{cab}{pendiente("Sin datos de esta versión en la corrida.")}</div>'
+        return f'<div class="va-carta va-ver">{cab}<p class="va-vacio">Sin datos de esta versión en la corrida.</p></div>'
     if fila["error"]:
-        return (f'<div class="va-carta va-ver falla">{cab}<div class="va-sec" style="color:#b91c1c">✕ Falló a los '
-                f'{esc(duracion(fila["segundos"]))}</div><div class="res">{esc(fila["error"][:220])}</div></div>')
+        return (f'<div class="va-carta va-ver falla">{cab}<p style="color:#b91c1c;font-weight:700">✕ Falló a los '
+                f'{esc(duracion(fila["segundos"]))}</p><div class="res">{esc(fila["error"][:220])}</div></div>')
     inf = fila["informe"]
     kpis = [("Tiempo", duracion(fila["segundos"])), ("Fuentes citadas", fila["fuentes"]),
             ("Riesgos", len(inf.get("riesgos_identificados") or [])),

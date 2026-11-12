@@ -24,3 +24,8 @@ LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "3000"))
 K_FRAGMENTOS = int(os.getenv("K_FRAGMENTOS", "3"))
 # largo maximo (en caracteres) de cada fragmento dentro del prompt
 MAX_CARACTERES_FRAGMENTO = int(os.getenv("MAX_CARACTERES_FRAGMENTO", "1200"))
+
+# --- demo ---
+# true = la demo muestra desde el inicio el "Modo equipo" (comparacion B1/B2/B3, JSON y
+# salidas de los agentes); igual se puede prender y apagar en la barra lateral
+DEMO_MODO_EQUIPO = os.getenv("DEMO_MODO_EQUIPO", "false").lower() == "true"
