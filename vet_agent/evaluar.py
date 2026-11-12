@@ -15,9 +15,17 @@ los campos entre comillas), con el formato acordado con Investigacion (documento
 - Si un intento termina en error (tiempo agotado, respuesta vacia, JSON invalido o texto
   cortado por max_tokens), se repite la misma combinacion hasta MAX_INTENTOS en total.
   Cada intento es una fila; apenas uno sale "ok" no se hacen mas.
+- Los reintentos usan una cache de respuestas (con_cache_respuestas): las llamadas al LLM que
+  ya salieron bien en un intento anterior de la misma combinacion no se repiten. Por eso el
+  tiempo_s de un reintento solo mide lo que se volvio a llamar al LLM (en B3, normalmente solo
+  el moderador), no el caso completo. El tiempo real de cada caso es el de tiempos_por_caso.csv,
+  que suma todos los intentos.
 - Mientras corre, consultar_llm no reintenta por su cuenta (LLM_REINTENTOS = 0), asi cada
   falla queda registrada como intento. La demo y main.py siguen usando LLM_REINTENTOS del .env.
-Ademas, resultados/comparacion.csv resume la ultima ejecucion (el ultimo intento de cada corrida).
+Ademas, resultados/comparacion.csv resume la ultima ejecucion (el ultimo intento de cada corrida),
+y resultados/tiempos_por_caso.csv guarda el tiempo de cada caso (escenario x repeticion): lo que
+tardo cada version sumando todos sus intentos, y el total. Ese archivo va junto al registro y
+tambien se agrega fila a fila.
 """
 import argparse
 import csv
@@ -51,6 +59,14 @@ COLUMNAS_REGISTRO = [
     "id_corrida", "fecha", "version_sistema", "baseline", "escenario", "repeticion", "intento",
     "modelo_y_version", "temperatura", "max_tokens", "version_prompt_base",
     "entrada", "salida", "tiempo_s", "fragmentos", "estado",
+]
+
+# tiempo de cada caso (escenario x repeticion); se guarda en la misma carpeta que el registro
+ARCHIVO_TIEMPOS = "tiempos_por_caso.csv"
+COLUMNAS_TIEMPOS = [
+    "fecha", "escenario", "repeticion", "B1_s", "B2_s", "B3_s",
+    "intentos_B1", "intentos_B2", "intentos_B3", "total_s", "fallidas",
+    "modelo_y_version", "version_sistema",
 ]
 
 # intentos en total por combinacion (baseline, escenario, repeticion)
@@ -196,15 +212,42 @@ def correr(baseline: str, escenario: str, caso: dict, repeticion: int, intento: 
     }
 
 
-def registrar(fila: dict, ruta: pathlib.Path = REGISTRO) -> None:
-    # se agrega una fila apenas termina cada corrida: si el proceso se corta, no se pierde lo anterior
+def _agregar(fila: dict, ruta: pathlib.Path, columnas: list[str]) -> None:
+    # se agrega una fila apenas termina: si el proceso se corta, no se pierde lo anterior
     ruta.parent.mkdir(parents=True, exist_ok=True)
     nuevo = not ruta.exists() or ruta.stat().st_size == 0
     with open(ruta, "a", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=COLUMNAS_REGISTRO, quoting=csv.QUOTE_ALL)
+        w = csv.DictWriter(f, fieldnames=columnas, quoting=csv.QUOTE_ALL)
         if nuevo:
             w.writeheader()
         w.writerow(fila)
+
+
+def registrar(fila: dict, ruta: pathlib.Path = REGISTRO) -> None:
+    _agregar(fila, ruta, COLUMNAS_REGISTRO)
+
+
+def tiempo_del_caso(intentos: list[dict], fecha: str, fijos: dict) -> dict:
+    """Fila de tiempos_por_caso.csv con los intentos de un caso (un escenario y una repeticion).
+
+    El tiempo de cada version suma todos sus intentos, igual que el tiempo real que costo.
+    """
+    fila = {"fecha": fecha, "escenario": intentos[0]["escenario"], "repeticion": intentos[0]["repeticion"],
+            "modelo_y_version": fijos["modelo_y_version"], "version_sistema": fijos["version_sistema"]}
+    total, fallidas = 0.0, []
+    # siempre las 3 columnas (son fijas en el archivo); vacias si esa version no se corrio
+    for baseline in ("B1", "B2", "B3"):
+        suyos = [i for i in intentos if i["baseline"] == baseline]
+        segundos = sum(float(i["tiempo_s"]) for i in suyos)
+        total += segundos
+        fila[f"{baseline}_s"] = f"{segundos:.1f}" if suyos else ""
+        fila[f"intentos_{baseline}"] = len(suyos) if suyos else ""
+        # una version falla si su ultimo intento no salio ok
+        if suyos and suyos[-1]["estado"] != "ok":
+            fallidas.append(baseline)
+    fila["total_s"] = f"{total:.1f}"
+    fila["fallidas"] = ";".join(fallidas)
+    return fila
 
 
 def guardar(filas: list[dict], ruta: pathlib.Path = SALIDA) -> None:
@@ -256,8 +299,10 @@ def con_cache_respuestas():
         return texto
 
     llm.consultar_llm = wrapper
+    # vars() y no getattr(): algunas librerias (ej. transformers) cargan submodulos al
+    # pedirles un atributo, y eso puede fallar si falta una dependencia opcional
     importados = [m for m in list(sys.modules.values())
-                  if m is not None and getattr(m, "consultar_llm", None) is original]
+                  if m is not None and vars(m).get("consultar_llm") is original]
     for m in importados:
         m.consultar_llm = wrapper
     try:
@@ -265,7 +310,7 @@ def con_cache_respuestas():
     finally:
         llm.consultar_llm = original
         for m in importados:
-            if getattr(m, "consultar_llm", None) is wrapper:
+            if vars(m).get("consultar_llm") is wrapper:
                 m.consultar_llm = original
 
 
@@ -273,10 +318,12 @@ def evaluar(escenarios: list[tuple[str, dict]], repeticiones: int = 1, registro:
     fijos = {"version_sistema": version_sistema(), "modelo_y_version": modelo_y_version(),
              "temperatura": LLM_TEMPERATURA, "max_tokens": LLM_MAX_TOKENS,
              "version_prompt_base": VERSION_PROMPTS}
+    tiempos = registro.with_name(ARCHIVO_TIEMPOS)
     filas, total, n = [], len(escenarios) * len(BASELINES) * repeticiones, 0
     with sin_reintentos_llm():
         for escenario, caso in escenarios:
             for repeticion in range(1, repeticiones + 1):
+                inicio_caso, desde = datetime.now().strftime("%Y-%m-%d %H:%M:%S"), len(filas)
                 for baseline, (nombre, _) in BASELINES.items():
                     n += 1
                     # cache nuevo por combinacion: reintentos reutilizan respuestas
@@ -284,7 +331,7 @@ def evaluar(escenarios: list[tuple[str, dict]], repeticiones: int = 1, registro:
                     with con_cache_respuestas():
                         for intento in range(1, MAX_INTENTOS + 1):
                             print(f"\n=== [{n}/{total}] {escenario} · {baseline} ({nombre}) · "
-                              f"repetición {repeticion}/{repeticiones} · intento {intento}/{MAX_INTENTOS} ===")
+                                  f"repetición {repeticion}/{repeticiones} · intento {intento}/{MAX_INTENTOS} ===")
                             fila = correr(baseline, escenario, caso, repeticion, intento, fijos)
                             registrar(fila, registro)
                             filas.append(fila)
@@ -292,6 +339,11 @@ def evaluar(escenarios: list[tuple[str, dict]], repeticiones: int = 1, registro:
                             print(f"{fila['id_corrida']}: {fila['estado']}, {fila['tiempo_s']} s, {detalle}")
                             if fila["estado"] == "ok":
                                 break
+                # terminadas las 3 versiones del caso, se guarda su tiempo
+                caso_tiempo = tiempo_del_caso(filas[desde:], inicio_caso, fijos)
+                _agregar(caso_tiempo, tiempos, COLUMNAS_TIEMPOS)
+                print(f"Tiempo de {escenario} R{repeticion}: {caso_tiempo['total_s']} s "
+                      f"(B1 {caso_tiempo['B1_s']} s, B2 {caso_tiempo['B2_s']} s, B3 {caso_tiempo['B3_s']} s)")
     return filas
 
 
@@ -315,6 +367,7 @@ def main() -> None:
     finales = ultimos_intentos(filas)
     guardar(finales)
     print(f"\nListo: {len(filas)} intentos de {len(finales)} corridas agregados a {REGISTRO.relative_to(RAIZ)}; "
+          f"tiempo de cada caso en {REGISTRO.with_name(ARCHIVO_TIEMPOS).relative_to(RAIZ)}; "
           f"resumen en {SALIDA.relative_to(RAIZ)}")
     fallidas = sum(f["estado"] == "error" for f in finales)
     if fallidas:
