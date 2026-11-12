@@ -36,13 +36,15 @@ NO HAGAS
 
 LÍMITES DE LONGITUD (obligatorios)
 - Sé breve y directo: no repitas datos que ya están en otro campo ni copies el contexto recuperado.
-- Respeta los máximos indicados en cada campo de la SALIDA.
+- factores_de_riesgo: máx. 5 ítems.
+- vacios_de_datos: máx. 4 ítems, 1 línea cada uno.
+- Respeta también los máximos indicados dentro de cada campo de la SALIDA.
 
 SALIDA (JSON)
 {
   "agente": "climatico",
   "resumen_condiciones": "string (máx. 3 oraciones)",
-  "factores_de_riesgo": [   (máx. 5 ítems)
+  "factores_de_riesgo": [
     {"factor": "string (máx. 10 palabras)", "efecto": "favorece|desfavorece",
      "mecanismo": "string (1 oración)", "tipo": "hecho|inferencia|supuesto",
      "fuentes": ["doc_id"]}
@@ -52,7 +54,7 @@ SALIDA (JSON)
   },
   "nivel_riesgo_ambiental": "bajo|moderado|alto|muy_alto",
   "ventana_temporal": "string (1 línea)",
-  "vacios_de_datos": ["string"],   (máx. 4 ítems, 1 línea cada uno)
+  "vacios_de_datos": ["string"],
   "confianza": "alta|media|baja"
 }
 """
@@ -84,7 +86,8 @@ NO HAGAS
 
 LÍMITES DE LONGITUD (obligatorios)
 - Sé breve y directo: no repitas datos que ya están en otro campo ni copies el contexto recuperado.
-- Respeta los máximos indicados en cada campo de la SALIDA.
+- afirmaciones: máx. 5 ítems.
+- Respeta también los máximos indicados dentro de cada campo de la SALIDA.
 
 SALIDA (JSON)
 {
@@ -101,7 +104,7 @@ SALIDA (JSON)
     "animal": "string (1 oración)", "humana": "string (1 oración)", "ambiental": "string (1 oración)"
   },
   "calidad_datos": "string (máx. 2 oraciones)",
-  "afirmaciones": [   (máx. 5 ítems)
+  "afirmaciones": [
     {"texto": "string (1 oración)", "tipo": "hecho|inferencia|supuesto", "fuentes": ["doc_id"]}
   ],
   "confianza": "alta|media|baja"
@@ -140,14 +143,16 @@ NO HAGAS
 LÍMITES DE LONGITUD (obligatorios)
 - Sé breve y directo: no repitas medidas entre campos ni copies el contexto recuperado.
 - Incluye solo las medidas más relevantes para el escenario, según su prioridad.
-- Respeta los máximos indicados en cada campo de la SALIDA.
+- medidas: máx. 8 ítems.
+- proteccion_personas, proteccion_ambiental y vacios_documentales: máx. 4 ítems cada uno, 1 línea por ítem.
+- Respeta también los máximos indicados dentro de cada campo de la SALIDA.
 
 SALIDA (JSON)
 {
   "agente": "bioseguridad",
   "autoridad_competente": ["string"],
   "notificacion_obligatoria": "si|no|no_determinable",
-  "medidas": [   (máx. 8 ítems)
+  "medidas": [
     {"nivel": "prevencion|contencion|limpieza_desinfeccion",
      "medida": "string (máx. 12 palabras)",
      "detalle": "string (máx. 2 oraciones)",
@@ -156,11 +161,26 @@ SALIDA (JSON)
      "requiere_autoridad": true,
      "fuentes": ["doc_id"]}
   ],
-  "proteccion_personas": ["string"],   (máx. 4 ítems, 1 línea cada uno)
-  "proteccion_ambiental": ["string"],   (máx. 4 ítems, 1 línea cada uno)
-  "vacios_documentales": ["string"],   (máx. 4 ítems, 1 línea cada uno)
+  "proteccion_personas": ["string"],
+  "proteccion_ambiental": ["string"],
+  "vacios_documentales": ["string"],
   "confianza": "alta|media|baja"
 }
+"""
+
+# limites de las listas del informe final. Van en texto aparte (y no como anotacion
+# dentro del JSON) para que la plantilla de SALIDA sea JSON valido: un modelo chico
+# copia la plantilla tal cual y una anotacion fuera de comillas le rompe la respuesta.
+# La usan el moderador y el prompt unico del baseline, que comparten FORMATO_INFORME.
+LIMITES_INFORME = """
+LÍMITES DE LONGITUD (obligatorios)
+- riesgos_identificados: máx. 6 ítems.
+- hipotesis_alternativas: máx. 3 ítems, 1 oración cada uno.
+- informacion_faltante: máx. 5 ítems, 1 línea cada uno.
+- recomendaciones: máx. 6 ítems.
+- protocolos_bioseguridad: máx. 6 ítems, 1 oración cada uno.
+- incertidumbres_y_limitaciones: máx. 4 ítems, 1 línea cada uno.
+- Respeta también los máximos indicados dentro de cada campo del informe.
 """
 
 PROMPT_MODERADOR = """
@@ -191,7 +211,7 @@ REGLAS
 - Excluye del informe las afirmaciones que no pasaron la verificación, y lístalas aparte.
 - El informe debe declarar que es apoyo a la decisión y requiere validación de un médico veterinario y de la autoridad competente.
 - Respeta los máximos de longitud indicados en cada campo del informe. Sé conciso, pero completa todos los campos: no omitas ninguno.
-
+""" + LIMITES_INFORME + """
 SALIDA (JSON)
 Si faltan aclaraciones y quedan rondas:
 {
@@ -206,20 +226,20 @@ Si el informe está listo:
     "resumen_ejecutivo": "string (máx. 5 líneas)",
     "nivel_riesgo_global": "bajo|moderado|alto|muy_alto",
     "justificacion_riesgo": "string (máx. 3 oraciones)",
-    "riesgos_identificados": [   (máx. 6 ítems)
+    "riesgos_identificados": [
       {"riesgo": "string (1 oración)", "dimension_one_health": "animal|humana|ambiental",
        "evidencia": ["doc_id"], "confianza": "alta|media|baja"}
     ],
     "analisis_one_health_integrado": "string (máx. 5 oraciones)",
-    "hipotesis_alternativas": ["string"],   (máx. 3 ítems, 1 oración cada uno)
-    "informacion_faltante": ["string"],   (máx. 5 ítems, 1 línea cada uno)
-    "recomendaciones": [   (máx. 6 ítems)
+    "hipotesis_alternativas": ["string"],
+    "informacion_faltante": ["string"],
+    "recomendaciones": [
       {"accion": "string (1 oración)", "prioridad": "inmediata|corto_plazo|preventiva",
        "responsable_sugerido": "string", "requiere_autoridad": true,
        "fuentes": ["doc_id"]}
     ],
-    "protocolos_bioseguridad": ["string"],   (máx. 6 ítems, 1 oración cada uno)
-    "incertidumbres_y_limitaciones": ["string"],   (máx. 4 ítems, 1 línea cada uno)
+    "protocolos_bioseguridad": ["string"],
+    "incertidumbres_y_limitaciones": ["string"],
     "afirmaciones_descartadas": [{"texto": "string", "agente": "string", "motivo": "string (1 línea)"}],
     "fuentes_utilizadas": [{"doc_id": "string", "organismo": "string", "anio": "string"}],
     "aviso": "Informe de apoyo a la decisión. Requiere validación de un médico veterinario y de la autoridad sanitaria competente."
@@ -257,7 +277,7 @@ REGLAS
 - Deja afirmaciones_descartadas como lista vacía.
 - Respeta los máximos de longitud indicados en cada campo del informe. Sé conciso, pero completa todos los campos: no omitas ninguno.
 - Responde solo con el JSON.
-
+""" + LIMITES_INFORME + """
 SALIDA (JSON)
 """ + FORMATO_INFORME + "\n"
 
