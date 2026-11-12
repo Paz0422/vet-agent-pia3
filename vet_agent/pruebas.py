@@ -10,7 +10,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END
 from langgraph.types import Command
 
-from vet_agent import llm
+from vet_agent import llm, prompts
 from vet_agent.agentes import base, climatico, diagnostico, bioseguridad, moderador
 from vet_agent.config import MAX_RONDAS, K_FRAGMENTOS
 from vet_agent.datos import clima
@@ -93,6 +93,33 @@ def prueba_moderador_agente_invalido():
     evaluacion = {"estado": "requiere_debate", "preguntas": [pregunta("agente climático")]}
     estado = {"evaluacion": evaluacion, "revisiones": 1}
     assert despues_del_moderador(estado) == "revision_humana"
+
+
+def prueba_plantillas_de_salida_son_json_valido():
+    # un modelo chico copia la plantilla de SALIDA tal cual: si trae texto fuera de
+    # comillas (ej. "(máx. 5 ítems)") la respuesta sale como JSON invalido
+    def objetos_json(texto):
+        salida = texto.split("SALIDA (JSON)", 1)[1]
+        objetos, nivel, inicio = [], 0, 0
+        for i, c in enumerate(salida):
+            if c == "{":
+                if nivel == 0:
+                    inicio = i
+                nivel += 1
+            elif c == "}":
+                nivel -= 1
+                if nivel == 0:
+                    objetos.append(salida[inicio:i + 1])
+        return objetos
+
+    for plantilla in (prompts.PROMPT_CLIMATICO, prompts.PROMPT_DIAGNOSTICO, prompts.PROMPT_BIOSEGURIDAD,
+                      prompts.PROMPT_MODERADOR, prompts.PROMPT_UNICO):
+        objetos = objetos_json(plantilla)
+        assert objetos
+        for objeto in objetos:
+            json.loads(objeto)
+    # el informe de B1/B2 sale de partir el prompt del moderador
+    assert json.loads(prompts.FORMATO_INFORME)["estado"] == "informe_final"
 
 
 def prueba_humano_aprueba():
@@ -963,6 +990,7 @@ if __name__ == "__main__":
         prueba_moderador_pide_debate,
         prueba_moderador_llega_al_maximo,
         prueba_moderador_agente_invalido,
+        prueba_plantillas_de_salida_son_json_valido,
         prueba_humano_aprueba,
         prueba_humano_rechaza,
         prueba_flujo_normal,
