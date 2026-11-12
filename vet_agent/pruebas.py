@@ -456,11 +456,13 @@ def sin_internet(url, params):
     raise requests.ConnectionError("sin internet (prueba)")
 
 
-def con_demo(prueba, internet=sin_internet):
+def con_demo(prueba, internet=sin_internet, con_ejemplo=True):
     """Corre `prueba(at)` con la demo cargada y Chroma vacio (los agentes siguen sin contexto RAG).
 
     Por defecto Open-Meteo no responde (el mapa de la comuna no aparece): asi las pruebas no
     dependen de internet. `internet` reemplaza a clima._get para simular otra respuesta.
+    El formulario parte vacio; con `con_ejemplo` se carga el caso de ejemplo (CASO_H5N1) antes
+    de la prueba, como lo haria el veterinario con "Cargar caso de ejemplo".
     """
     import streamlit as st
     from streamlit.testing.v1 import AppTest
@@ -471,6 +473,9 @@ def con_demo(prueba, internet=sin_internet):
     try:
         at = AppTest.from_file(str(APP_DEMO), default_timeout=120)
         at.run()
+        if con_ejemplo:
+            at.selectbox(key="escenario_elegido").select("Caso de ejemplo (H5N1)").run()
+            assert not at.exception, at.exception
         prueba(at)
     finally:
         buscar._cliente, buscar._ef, clima._get = cliente_original, ef_original, get_original
@@ -1101,6 +1106,7 @@ def prueba_demo_diagrama_del_grafo_en_vivo():
         apretar(at, "Rechazar")
         vista = at.session_state["grafo_vista"]
         assert vista["rechazo"] and vista["ronda"] == 2 and nodos(at)["revision_humana"] == "pausa"
+        assert vista["rechazos"] == 1 and vista["debates"] == 0
         apretar(at, "Aprobar")
         assert nodos(at)["revision_humana"] == "aprobado"
         assert not at.session_state["grafo_vista"]["rechazo"]
@@ -1125,15 +1131,31 @@ def prueba_demo_mapa_de_la_comuna():
 
     def revisar(at):
         from vet_agent.main import CASO_H5N1
-        assert len(mapas(at)) == 1  # pantalla de inicio
+        assert len(mapas(at)) == 1  # junto a los datos del plantel
         assert lugares == [CASO_H5N1["comuna"]], "busca la comuna del caso (y una sola vez: queda guardada)"
         apretar(at, "Analizar")
-        assert len(mapas(at)) == 1  # junto a las tarjetas One Health
+        assert len(mapas(at)) == 1  # sigue en el formulario, ahora plegado arriba del informe
     con_demo(revisar, internet=geocodificacion)
+
+
+def prueba_demo_sin_comuna_no_hay_mapa():
+    # con el formulario vacio no hay comuna que buscar: ni mapa ni llamada a internet
+    lugares = []
+
+    def geocodificacion(url, params):
+        lugares.append(params["name"])
+        return {"results": [{"latitude": -32.95, "longitude": -71.53}]}
+
+    def revisar(at):
+        assert not mapas(at) and lugares == []
+    con_demo(revisar, internet=geocodificacion, con_ejemplo=False)
 
 
 def prueba_demo_comparar_versiones():
     def revisar(at):
+        # es del modo equipo: apagado por defecto
+        assert not any(s.key == "corrida_comparar" for s in at.selectbox)
+        at.toggle(key="modo_equipo").set_value(True).run()
         corridas = at.selectbox(key="corrida_comparar")
         assert "comparacion.csv" in corridas.options
         corridas.select("prueba_2casos/comparacion.csv").run()
@@ -1151,11 +1173,92 @@ def prueba_vista_demo_escapa_html_y_numera_citas():
                "fuentes_utilizadas": [{"doc_id": "D24"}]}
     numeros = vista.numerar_citas(informe)
     assert numeros == {"D8": 1, "D3": 2, "SAG-1": 3, "D24": 4}, "en el orden en que aparecen"
-    tarjeta = vista.tarjeta_one_health("humana", "Humana", "", informe["riesgos_identificados"], [], numeros)
-    assert "<script>" not in tarjeta and "&lt;script&gt;" in tarjeta
-    assert '<sup class="va-nota">1,2</sup>' in tarjeta
-    assert "<script>" not in vista.lista_riesgos(informe["riesgos_identificados"], numeros)
-    assert vista.COLOR_RIESGO["alto"] in vista.medidor("alto") and "PENDIENTE" in vista.medidor(None)
+    riesgos = vista.riesgos_one_health(informe["riesgos_identificados"], numeros)
+    assert "<script>" not in riesgos and "&lt;script&gt;" in riesgos
+    assert '<sup class="va-nota">1,2</sup>' in riesgos
+    assert "Otros · 1" in riesgos, "un riesgo sin dimension no se pierde"
+    malo = {"nivel_riesgo_global": "alto", "justificacion_riesgo": "<b>hola</b>. Segunda frase."}
+    bloque = vista.bloque_riesgo(malo, "media", "", "pendiente")
+    assert vista.COLOR_RIESGO["alto"] in bloque and "&lt;b&gt;hola&lt;/b&gt;." in bloque and "<b>hola" not in bloque
+    assert "Confianza media" in bloque
+    assert "SIN NIVEL" in vista.bloque_riesgo({}, None, "", "pendiente")
+    inmediatas = vista.acciones_inmediatas([{"accion": "<i>x</i>", "fuentes": ["D3"]}], numeros, "")
+    assert "<i>x" not in inmediatas and '<sup class="va-nota">2</sup>' in inmediatas
+
+
+def prueba_demo_formulario_vacio_pide_obligatorios():
+    # el veterinario parte con el formulario vacio; sin los datos minimos no se analiza
+    def revisar(at):
+        assert at.text_input(key="caso_especie").value == ""
+        assert at.text_area(key="caso_signos_clinicos").value == ""
+        apretar(at, "Analizar")
+        aviso = next(a for a in avisos(at) if "Revisa el caso" in a)
+        assert "Falta: Especie." in aviso and "Falta: Signos clínicos." in aviso
+        assert "caso_a_analizar" not in at.session_state, "no debia lanzar el analisis"
+        assert not hay_boton(at, "Aprobar")
+        # con un numero mal escrito tambien avisa y no analiza
+        at.selectbox(key="escenario_elegido").select("Caso de ejemplo (H5N1)").run()
+        at.text_input(key="caso_n_animales").input("muchas").run()
+        apretar(at, "Analizar")
+        assert any("Animales en el plantel: escribe un número (ej" in a for a in avisos(at)), avisos(at)
+        at.text_input(key="caso_n_animales").input("40000,5").run()
+        apretar(at, "Analizar")
+        assert any("Animales en el plantel: escribe un número entero" in a for a in avisos(at)), avisos(at)
+        assert not hay_boton(at, "Aprobar")
+    con_demo(revisar, con_ejemplo=False)
+
+
+def prueba_demo_vaciar_formulario():
+    def revisar(at):
+        assert at.text_input(key="caso_comuna").value != ""
+        apretar(at, "Vaciar formulario")
+        assert at.text_input(key="caso_comuna").value == ""
+        assert at.text_input(key="caso_clima_temperatura_media_c").value == ""
+        assert at.text_input(key="lugar_clima").value == ""
+    con_demo(revisar)
+
+
+def prueba_vista_demo_formulario_ida_y_vuelta():
+    from vet_agent import vista_demo as vista
+    from vet_agent.main import CASO_H5N1
+    campos = list(CASO_H5N1)
+    valores = vista.caso_a_formulario(CASO_H5N1, campos)
+    assert valores["caso_resultados_laboratorio"].splitlines()[0] == "RT-PCR: positivo a influenza A (gen M) · 2026-05-03"
+    caso, errores = vista.leer_caso(valores, campos)
+    assert errores == [] and caso == CASO_H5N1, "lo que se carga en el formulario vuelve igual"
+    # laboratorio: la fecha es opcional y el resultado tambien
+    assert vista.texto_a_lab("RT-PCR influenza A: pendiente\nELISA") == [
+        {"prueba": "RT-PCR influenza A", "resultado": "pendiente", "fecha": None},
+        {"prueba": "ELISA", "resultado": None, "fecha": None}]
+    # formatos: coma decimal, rango de porcentajes, fecha y obligatorios
+    valores.update({"caso_mortalidad_pct": "12,5", "caso_morbilidad_pct": "130", "caso_fecha_evento": "01-05-2026",
+                    "caso_especie": "  "})
+    caso, errores = vista.leer_caso(valores, campos)
+    assert caso["mortalidad_pct"] == 12.5
+    assert any("Morbilidad: debe estar entre 0 y 100" in e for e in errores)
+    assert any("Fecha del evento: usa el formato AAAA-MM-DD" in e for e in errores)
+    assert "Falta: Especie." in errores
+
+
+def prueba_vista_demo_apoyo_a_la_decision():
+    from vet_agent import vista_demo as vista
+    # confianza: la que mas se repite en los riesgos; en un empate, la mas baja
+    riesgos = [{"confianza": "alta"}, {"confianza": "media"}]
+    assert vista.confianza_global({"riesgos_identificados": riesgos}, {}) == "media"
+    assert vista.confianza_global({}, {"climatico": {"confianza": "alta"}}) == "alta"
+    assert vista.confianza_global({}, {}) is None
+    # notificacion obligatoria, segun el agente de bioseguridad
+    noti = vista.notificacion({"bioseguridad": {"notificacion_obligatoria": "si", "autoridad_competente": ["SAG"]}})
+    assert noti == {"estado": "si", "autoridades": ["SAG"]}
+    assert "Notificación obligatoria:" in vista.bloque_notificacion(noti) and "SAG" in vista.bloque_notificacion(noti)
+    assert vista.bloque_notificacion(vista.notificacion({})) == ""
+    grupos = vista.recomendaciones_por_prioridad([{"accion": "a", "prioridad": "inmediata"}, "suelta",
+                                                  {"accion": "c", "prioridad": "preventiva"}])
+    assert [r["accion"] for r in grupos["inmediata"]] == ["a"] and grupos["otra"] == [{"accion": "suelta"}]
+    # resumen del proceso cuando termina
+    v = vista.grafo_inicial() | {"debates": 1, "rechazos": 0}
+    assert vista.resumen_proceso(v, 151, None) == "✓ 4 agentes · 2 min 31 s · 1 ronda de debate"
+    assert vista.primera_frase("Hay riesgo alto. Por esto otro.") == "Hay riesgo alto."
 
 
 def prueba_vista_demo_siguiente_nodo():
@@ -1287,9 +1390,14 @@ if __name__ == "__main__":
         prueba_demo_diagrama_del_grafo_en_vivo,
         prueba_demo_sin_internet_no_hay_mapa,
         prueba_demo_mapa_de_la_comuna,
+        prueba_demo_sin_comuna_no_hay_mapa,
+        prueba_demo_formulario_vacio_pide_obligatorios,
+        prueba_demo_vaciar_formulario,
         prueba_demo_comparar_versiones,
         prueba_vista_demo_escapa_html_y_numera_citas,
         prueba_vista_demo_siguiente_nodo,
+        prueba_vista_demo_formulario_ida_y_vuelta,
+        prueba_vista_demo_apoyo_a_la_decision,
         prueba_vista_demo_lee_comparaciones,
 
         prueba_revisar_escenarios_tmp,
