@@ -26,6 +26,9 @@ Ademas, resultados/comparacion.csv resume la ultima ejecucion (el ultimo intento
 y resultados/tiempos_por_caso.csv guarda el tiempo de cada caso (escenario x repeticion): lo que
 tardo cada version sumando todos sus intentos, y el total. Ese archivo va junto al registro y
 tambien se agrega fila a fila.
+En B3, cada intento guarda ademas resultados/salidas_agentes/<id_corrida>.json con el JSON
+que entrego cada agente (climatico, diagnostico, bioseguridad), tambien si el intento fallo
+despues de que los agentes respondieron (con "estado": "error"). B1 y B2 no guardan nada.
 """
 import argparse
 import csv
@@ -69,6 +72,9 @@ COLUMNAS_TIEMPOS = [
     "modelo_y_version", "version_sistema",
 ]
 
+# en B3, la salida de cada agente de cada intento: <carpeta>/<id_corrida>.json, junto al registro
+CARPETA_SALIDAS_AGENTES = "salidas_agentes"
+
 # intentos en total por combinacion (baseline, escenario, repeticion)
 MAX_INTENTOS = 4
 
@@ -105,14 +111,27 @@ def monoagente_rag(caso: dict) -> tuple[dict, list[dict]]:
     return _informe_unico(caso, contexto, fragmentos), fragmentos
 
 
+# salida de cada agente en el ultimo multiagente() que se corrio: {"climatico": {...}, ...}.
+# Queda aca y no en lo que devuelve la funcion porque tambien se necesita cuando el intento
+# falla (ej. falla el moderador despues de que los 3 agentes respondieron)
+ULTIMAS_SALIDAS: dict = {}
+
+
 def multiagente(caso: dict) -> tuple[dict, list[dict]]:
+    ULTIMAS_SALIDAS.clear()
     app = construir_grafo(InMemorySaver())
     config = {"configurable": {"thread_id": "evaluacion"}}
     estado_inicial = {"caso": caso, "resultados": {}, "solicitudes": {}, "revisiones": 0, "decision_humana": {}}
-    resultado = app.invoke(estado_inicial, config)
-    # cada pausa de revision humana se aprueba sola
-    while "__interrupt__" in resultado:
-        resultado = app.invoke(Command(resume=APROBAR), config)
+    try:
+        resultado = app.invoke(estado_inicial, config)
+        # cada pausa de revision humana se aprueba sola
+        while "__interrupt__" in resultado:
+            resultado = app.invoke(Command(resume=APROBAR), config)
+    finally:
+        # el checkpointer guarda el estado al terminar cada nodo, asi que aunque invoke haya
+        # fallado quedan los resultados de los agentes que alcanzaron a responder. En las
+        # rondas de debate cada agente reemplaza su clave: queda su ultima salida
+        ULTIMAS_SALIDAS.update(app.get_state(config).values.get("resultados", {}))
     # los fragmentos son la evidencia que recuperaron los 3 agentes
     return resultado["evaluacion"].get("informe", {}), evidencia_unida(resultado["resultados"])
 
@@ -190,10 +209,31 @@ def lista_fragmentos(fragmentos: list[dict]) -> str:
     return ";".join(dict.fromkeys(f"{f['doc_id']}_{f['chunk']}" for f in fragmentos))
 
 
+def guardar_salidas_agentes(fila: dict, carpeta: pathlib.Path) -> pathlib.Path | None:
+    """Guarda en carpeta/<id_corrida>.json lo que respondio cada agente en un intento de B3.
+
+    Usa ULTIMAS_SALIDAS, que deja multiagente() aunque el intento haya fallado. Si ningun
+    agente alcanzo a responder no hay nada que guardar y devuelve None.
+    """
+    if not ULTIMAS_SALIDAS:
+        return None
+    datos = {"id_corrida": fila["id_corrida"], "escenario": fila["escenario"],
+             "repeticion": fila["repeticion"], "intento": fila["intento"],
+             "version_sistema": fila["version_sistema"], "estado": fila["estado"]}
+    # siempre las 3 claves; null si ese agente no alcanzo a responder
+    for agente in ("climatico", "diagnostico", "bioseguridad"):
+        datos[agente] = ULTIMAS_SALIDAS.get(agente)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    ruta = carpeta / f"{fila['id_corrida']}.json"
+    ruta.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
+    return ruta
+
+
 def correr(baseline: str, escenario: str, caso: dict, repeticion: int, intento: int, fijos: dict) -> dict:
     """Corre un intento de una version con un escenario y devuelve la fila del registro."""
     _, configuracion = BASELINES[baseline]
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ULTIMAS_SALIDAS.clear()  # para no guardar las de un intento anterior si este falla antes
     inicio = time.perf_counter()
     try:
         informe, fragmentos = configuracion(caso)
@@ -319,6 +359,7 @@ def evaluar(escenarios: list[tuple[str, dict]], repeticiones: int = 1, registro:
              "temperatura": LLM_TEMPERATURA, "max_tokens": LLM_MAX_TOKENS,
              "version_prompt_base": VERSION_PROMPTS}
     tiempos = registro.with_name(ARCHIVO_TIEMPOS)
+    salidas_agentes = registro.with_name(CARPETA_SALIDAS_AGENTES)
     filas, total, n = [], len(escenarios) * len(BASELINES) * repeticiones, 0
     with sin_reintentos_llm():
         for escenario, caso in escenarios:
@@ -334,6 +375,8 @@ def evaluar(escenarios: list[tuple[str, dict]], repeticiones: int = 1, registro:
                                   f"repetición {repeticion}/{repeticiones} · intento {intento}/{MAX_INTENTOS} ===")
                             fila = correr(baseline, escenario, caso, repeticion, intento, fijos)
                             registrar(fila, registro)
+                            if baseline == "B3":
+                                guardar_salidas_agentes(fila, salidas_agentes)
                             filas.append(fila)
                             detalle = f"{len(fila['fragmentos'].split(';')) if fila['fragmentos'] else 0} fragmentos recuperados"
                             print(f"{fila['id_corrida']}: {fila['estado']}, {fila['tiempo_s']} s, {detalle}")
