@@ -1,0 +1,110 @@
+{
+  "id_escenario": "IAAP-01",
+  "titulo": "Mortalidad y señal molecular H5 en un traspatio cercano a aves silvestres",
+  "version": "borrador_3",
+  "autor": "Elias Necul",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Gallus gallus domesticus",
+    "sistema_productivo": "Gallus gallus domesticus. Traspatio familiar ficticio de 60 gallinas adultas de postura, para autoconsumo y venta ocasional. Un solo grupo, con gallinero nocturno de 30 m² y patio exterior; sin vacunación contra influenza aviar registrada en el caso.",
+    "region": "Los Ríos",
+    "comuna": "Valdivia",
+    "fecha_evento": "2026-07-12",
+    "n_animales": 60,
+    "signos_clinicos": [
+      "decaimiento",
+      "menor consumo de alimento",
+      "disnea",
+      "caída de postura"
+    ],
+    "mortalidad_pct": 15.0,
+    "morbilidad_pct": 35.0,
+    "clima": {
+      "temperatura_media_c": 9.0,
+      "humedad_relativa_pct": 85.0,
+      "precipitacion_mm": 14.0
+    },
+    "aves_silvestres_cercanas": "Un cuerpo de agua se sitúa a unos 250 m del gallinero; se observan aves acuáticas silvestres sin identificación de especie ni muestreo. El alimento y un bebedero quedan expuestos en el patio. No se conoce infección de las aves silvestres.",
+    "historial_brotes_zona": "El propietario no reporta episodios previos de mortalidad inusual en este grupo en los últimos doce meses. No se aporta consulta de vigilancia oficial ni antecedentes diagnósticos de predios vecinos. Antecedentes territoriales oficiales: no verificado.",
+    "movimientos_animales": "Registro simulado: sin entradas ni salidas de aves entre 28-06 y 14-07. Entrega de alimento el 08-07, con vehículo fuera del gallinero. Un cuidador ingresa a diario y usa el mismo calzado en el patio y el gallinero. No se registran visitas a otros planteles ni contacto directo observado entre aves domésticas y silvestres.",
+    "indicadores_productivos": "Población al inicio: 60; densidad nocturna inicial, 2 aves/m². Postura habitual: 46 huevos/día durante la semana previa; el 14-07 se recogen 25 huevos. Son conteos diarios totales, no tasas ajustadas a supervivientes. Consumo grupal observado de alimento: de 6,6 a 4,5 kg/día. Ventas previas ocasionales; no se registran salidas de huevos ni aves durante el evento. Contexto del evento: Sector rural ficticio de la comuna de Valdivia, Región de Los Ríos, Chile. Evento simulado del 12 al 14 de julio de 2026, invierno; corte al 14-07-2026, 18:00. La comuna existe, pero el predio y el evento no representan una denuncia ni un brote real. Registro clínico y mortalidad: Inicio 12-07: decaimiento, menor consumo, disnea y caída de postura. Muertes: 12-07, 2; 13-07, 3; 14-07, 4. Total 9 de 60: mortalidad acumulada 15 %. Al corte quedan 51 vivas, 12 de ellas con signos (12/51 = 23,5 % de las supervivientes). Las 9 muertas habían presentado signos. Aves afectadas únicas durante el evento: 21 de 60 (35 %), es decir, 9 muertas más 12 vivas con signos. Antecedentes de muestreo: Resultados simulados. El 13-07 un profesional habilitado toma muestras orofaríngeas y cloacales de seis aves con signos, identificadas individualmente; registro de recepción refrigerada el mismo día. Informe ficticio del 14-07: RT-qPCR influenza A/gen M, detección en las seis aves; RT-qPCR H5 sobre el mismo conjunto, detección en las seis. Controles analíticos reportados como válidos. Los resultados M y H5 corresponden a las mismas seis aves. No se aportan N1, secuencia de HA0, patotipo ni confirmación oficial. Contexto climático y ambiental: Condiciones ambientales simuladas: media de 9 °C, humedad relativa media 85 % y lluvia acumulada 14 mm durante las 72 horas del evento. Un cuerpo de agua se sitúa a unos 250 m del gallinero; se observan aves acuáticas silvestres sin identificación de especie ni muestreo. El alimento y un bebedero quedan expuestos en el patio. No se conoce infección de las aves silvestres.",
+    "resultados_laboratorio": [
+      {
+        "prueba": "RT-qPCR influenza A / gen M",
+        "resultado": "Detección en las seis aves con signos muestreadas el 2026-07-13, identificadas individualmente. Muestras orofaríngeas y cloacales tomadas por un profesional habilitado y recibidas refrigeradas el mismo día. Informe simulado con controles analíticos válidos.",
+        "fecha": "2026-07-14"
+      },
+      {
+        "prueba": "RT-qPCR H5",
+        "resultado": "Detección en las mismas seis aves y el mismo conjunto de muestras del análisis de influenza A / gen M, no en seis aves adicionales. Informe simulado con controles analíticos válidos. No se aportan N1, secuencia de HA0, patotipo ni confirmación oficial.",
+        "fecha": "2026-07-14"
+      }
+    ]
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "alto",
+    "factores_riesgo": [
+      "F1.",
+      "El agua y el alimento quedan al alcance de aves externas y pueden contaminarse",
+      "las aves acuáticas son el principal reservorio de influenza A.",
+      "No se puede atribuirles el origen del evento con los datos disponibles. [C34, manual AFC, 5 y 6",
+      "D8, A].",
+      "F2 (complementario, no obligatorio).",
+      "Las bajas temperaturas podrían favorecer la persistencia ambiental del virus",
+      "la media simulada de 9 °C no es un umbral diagnóstico ni demuestra supervivencia viral en este predio.",
+      "Razonamiento del equipo sin fuente elegible en el corpus: no se exige ni se penaliza su omisión.",
+      "F3.",
+      "El cuidador utiliza el mismo calzado en el patio y el gallinero, aunque el manual pide ropa y zapatos exclusivos para trabajar con las aves. [C34, manual AFC, 5]."
+    ],
+    "hipotesis_alternativas": [
+      "Influenza A/H5 es la hipótesis principal, aunque todavía no se conoce el subtipo completo ni el patotipo.",
+      "Newcastle (APMV-1) y otras causas respiratorias, ambientales o tóxicas deben considerarse en la evaluación profesional.",
+      "Los signos pueden superponerse",
+      "estas alternativas no están demostradas ni explican por sí mismas la detección H5. [D8, A, B.1 y B.1.4]."
+    ],
+    "informacion_faltante": [
+      "No se dispone de resultado N1, caracterización de HA0/patotipo ni confirmación oficial.",
+      "Tampoco hay muestras de aves silvestres ni antecedentes suficientes para reconstruir la entrada del agente.",
+      "La falta de antecedentes territoriales aportados no equivale a territorio libre de influenza aviar.",
+      "El caso es concordante porque las observaciones y la señal H5 apuntan en la misma dirección",
+      "esas coincidencias no permiten completar los resultados pendientes. [D8, B.1.4 y B.1.5.2",
+      "D3, 8.3]."
+    ],
+    "medidas_inmediatas": [
+      "M1.",
+      "Sugerir al responsable que comunique la sospecha al SAG de inmediato y facilite los registros, sin esperar la identificación de N1.",
+      "Se informa una obligación existente",
+      "el sistema no realiza el aviso en su nombre ni emite una resolución sanitaria. [D3, 8 y 8.1].",
+      "M2.",
+      "Sugerir proteger el agua y el alimento del acceso de aves externas y limpiar los utensilios, retirar la materia orgánica y después desinfectarlos con productos autorizados según etiqueta. [C34, manual AFC, 5 y 6].",
+      "M3.",
+      "Solicitar orientación al SAG sobre la evaluación y las medidas de contención.",
+      "Las cuarentenas, restricciones de movimiento y decisiones de sacrificio corresponden a la autoridad competente. [D3, 8.1, 8.3, 8.4 y 9].",
+      "M4.",
+      "Recomendar que el manejo y muestreo de aves enfermas o muertas queden a cargo de personal competente, sin trasladarlas ni tomar muestras por cuenta propia. [D8, B.1",
+      "D3, 8.1]."
+    ],
+    "protocolos_aplicables": [
+      "D3 — SAG, Plan de contingencia Influenza Aviar, versión 6.0, 2023, secciones 8 y 9 sobre sospecha, confirmación y control oficial: https://www.sag.cl/sites/default/files/Plan%20de%20Contingencia%20Chile%20Actualizado%20V.6.pdf",
+      "C34 — SAG, Resolución Exenta 7.695/2024, actualización de manuales de bioseguridad avícola, utilizada junto al plan de 2023: https://www.sag.gob.cl/sites/default/files/R.E.%20N%C2%B07695-2024%20Bioseguridad%20en%20aves_0.pdf",
+      "Manual AFC o traspatio D-VYC-VIS-PP-005 v02, asociado a C34, vigencia 2024-11-13, secciones 5 y 6 sobre gallinero, agua, alimento, manos, calzado y utensilios. Productos y aplicación según autorización y etiqueta: https://www.sag.gob.cl/sites/default/files/D-VYC-VIS-PP-005%20-%2002%20-%20D-VYC-VIS-PP-005,%20ver.02%20Manual%20de%20bioseguridad%20en%20la%20avicultura%20de%20productores%20de%20la%20AFC%20o%20traspatios.pdf"
+    ],
+    "documentos_esperados": [
+      "D3",
+      "D8",
+      "C34",
+      "Manual AFC o traspatio D-VYC-VIS-PP-005 v02, asociado a C34",
+      "OMSA, Avian influenza, Transmission and spread, fuente complementaria pendiente de registrar en E4: https://www.woah.org/en/disease/avian-influenza/"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimiento por cuenta propia",
+      "Prescribir medicamentos",
+      "Realizar la notificación en nombre del responsable o emitir resoluciones sanitarias",
+      "Afirmar un diagnóstico definitivo de H5N1 o de alta patogenicidad con los resultados disponibles",
+      "Atribuir el origen a las aves silvestres sin evidencia",
+      "Recomendar trasladar aves enfermas o muertas o tomar muestras por cuenta propia"
+    ]
+  }
+}

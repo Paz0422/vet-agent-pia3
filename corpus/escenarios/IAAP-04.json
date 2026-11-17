@@ -1,0 +1,95 @@
+{
+  "id_escenario": "IAAP-04",
+  "titulo": "Mortalidad súbita en pavos con detección de influenza A y H5",
+  "version": "borrador_2",
+  "autor": "Andrés Lugo Briceño",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Pavos de engorda de 11 semanas",
+    "sistema_productivo": "Pavos de engorda de 11 semanas, plantel industrial de 14.000 aves en dos galpones; el evento se concentra inicialmente en el galpón 1.",
+    "region": "Biobío",
+    "comuna": "Los Ángeles",
+    "fecha_evento": "2026-05-10",
+    "n_animales": 14000,
+    "signos_clinicos": [
+      "depresión",
+      "plumas erizadas",
+      "disnea",
+      "edema facial",
+      "cianosis de barbillas"
+    ],
+    "mortalidad_pct": 3.7,
+    "morbilidad_pct": 16.0,
+    "clima": {
+      "temperatura_media_c": 11.2,
+      "humedad_relativa_pct": 79.0,
+      "precipitacion_mm": 24.0
+    },
+    "aves_silvestres_cercanas": "Canal de riego a 900 m. El encargado reporta presencia frecuente de patos silvestres en potreros vecinos.",
+    "historial_brotes_zona": "El encargado informa una denuncia por aves silvestres en investigación en la provincia durante abril de 2026. No tiene registro de un foco confirmado en aves de corral en la comuna durante los 12 meses previos.",
+    "movimientos_animales": "No hubo ingreso de aves después de la recepción del lote el 2026-03-01. Camión de alimento ingresó el 2026-05-09; el registro de desinfección está completo. Un contratista de mantención ingresó el 2026-05-08 y firmó el registro de visitas.",
+    "indicadores_productivos": "Dos galpones de 7.000 aves. En el galpón 1, consumo de agua 22 % menor y alimento 18 % menor el 13-may. Peso promedio de 6,2 kg frente a 6,8 kg esperado. El despacho previsto para el 16-may quedó pendiente. Contexto del evento: Los Ángeles, Región del Biobío. Evento del 2026-05-10 al 2026-05-14 (otoño). El encargado reporta la sospecha al SAG el 2026-05-14. Registro clínico y mortalidad: Depresión, plumas erizadas, disnea, edema facial y cianosis de barbillas. Muertes diarias: 10-may 7; 11-may 19; 12-may 61; 13-may 148; 14-may 285. La mortalidad acumulada de 520/14.000 = 3,7 % corresponde al plantel completo. La morbilidad estimada de 2.240/14.000 = 16,0 % representa aves individuales del plantel completo que el encargado reportó con signos; no es el número de observaciones ni existe desglose por galpón. Antecedentes de muestreo: El SAG toma hisopos orofaríngeos y cloacales de aves enfermas y recién muertas el 2026-05-14. RT-PCR influenza A, gen M: positivo, 2026-05-15. RT-PCR H5: positivo, 2026-05-15. La caracterización oficial complementaria está pendiente. Contexto climático: Semana 2026-05-08 a 2026-05-14: temperatura media 11,2 °C; humedad relativa media 79 %; precipitación acumulada 24 mm. Canal de riego a 900 m; el encargado reporta presencia frecuente de patos silvestres en los potreros vecinos.",
+    "resultados_laboratorio": [
+      {
+        "prueba": "RT-PCR influenza A / gen M",
+        "resultado": "Positivo. Hisopos orofaríngeos y cloacales de aves enfermas y recién muertas tomados por el SAG el 2026-05-14.",
+        "fecha": "2026-05-15"
+      },
+      {
+        "prueba": "RT-PCR H5",
+        "resultado": "Positivo. Caracterización oficial complementaria pendiente.",
+        "fecha": "2026-05-15"
+      }
+    ]
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "muy_alto",
+    "factores_riesgo": [
+      "Aves silvestres cercanas al canal",
+      "signos observados inicialmente en el galpón 1",
+      "vehículo y contratista en la ventana previa.",
+      "C34 respalda verificar barreras, ingresos y registros, aunque en este caso los registros declarados están completos. [C34]"
+    ],
+    "hipotesis_alternativas": [
+      "Influenza aviar H5 con caracterización oficial pendiente.",
+      "Enfermedad de Newcastle u otra enfermedad respiratoria aguda.",
+      "Problema de ventilación, agua o intoxicación como factor concomitante, menos compatible con las detecciones de influenza A y H5."
+    ],
+    "informacion_faltante": [
+      "Caracterización oficial complementaria y resultado de la investigación del SAG",
+      "trazabilidad de los vehículos y actividades del contratista",
+      "antecedentes oficiales de aves silvestres",
+      "inspección del estado de mallas y barreras del galpón 1",
+      "registros de limpieza y desinfección del galpón 1."
+    ],
+    "medidas_inmediatas": [
+      "Se sugiere mantener comunicación con el SAG y entregarle las series de mortalidad, registros y resultados",
+      "D3 reserva a la autoridad la confirmación y las medidas oficiales.",
+      "Se sugiere reforzar la verificación de barreras y registros según C34, y aplicar la protección del personal que corresponda conforme a E5.",
+      "D22 se considera únicamente como referencia retrospectiva por su vigencia posterior al evento.",
+      "No se ordenan cuarentena, sacrificio, restricciones ni medicamentos. [D3] [C34] [E5] [D22]"
+    ],
+    "protocolos_aplicables": [
+      "D3 · Plan de Contingencia Influenza Aviar v6.0. D22 · Instructivo SAG D-ATR-AAT-013 v03. D8 · Manual Terrestre OMSA 3.3.4. C34 · Res. Ex. N° 7.695/2024. E5 · Bioseguridad de las personas ante riesgo de zoonosis."
+    ],
+    "documentos_esperados": [
+      "A2",
+      "A3",
+      "A4",
+      "D3",
+      "D8",
+      "D22",
+      "C34",
+      "C21",
+      "E5"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
+    ]
+  }
+}

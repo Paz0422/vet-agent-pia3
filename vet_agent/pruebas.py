@@ -450,6 +450,9 @@ def prueba_main_rechazo_pide_comentario():
 # ---------- pruebas de la demo con el modo de pruebas de Streamlit (sin navegador) ----------
 
 APP_DEMO = pathlib.Path(__file__).resolve().parents[1] / "app_demo.py"
+# IAAP-00 (la fila de ejemplo de la planilla) vive aparte: corpus/escenarios solo tiene
+# los 12 escenarios de las corridas oficiales
+ESCENARIOS_PRUEBA = pathlib.Path(__file__).resolve().parents[1] / "corpus" / "escenarios_prueba"
 
 
 def sin_internet(url, params):
@@ -1091,7 +1094,7 @@ def prueba_demo_cargar_escenario():
         at.selectbox(key="escenario_elegido").select("IAAP-12").run()
         assert not at.exception, at.exception
         assert at.text_input(key="caso_region").value == "La Araucanía"
-        assert at.text_input(key="caso_comuna").value == "Puerto Saavedra"
+        assert at.text_input(key="caso_comuna").value == "Saavedra"
         assert at.text_input(key="caso_n_animales").value == "47"
         assert at.text_input(key="caso_morbilidad_pct").value == ""  # viene null en el escenario
         assert at.text_input(key="caso_clima_temperatura_media_c").value == "14.0"
@@ -1099,7 +1102,7 @@ def prueba_demo_cargar_escenario():
         assert "RT-PCR influenza A" in at.text_area(key="caso_resultados_laboratorio").value
         # el lugar/fecha del boton "Traer clima" tambien se actualizan al cambiar de escenario
         # (si no, "Traer clima" traeria el clima de otro lugar/fecha sin que se note)
-        assert at.text_input(key="lugar_clima").value == "Puerto Saavedra"
+        assert at.text_input(key="lugar_clima").value == "Saavedra"
         assert at.text_input(key="fecha_clima").value == "2026-03-09"
     con_demo(revisar)
 
@@ -1284,7 +1287,14 @@ def prueba_demo_sin_comuna_no_analiza_y_resumen_con_comuna():
         resumen = next(e.label for e in at.expander if e.label.startswith("Caso analizado"))
         assert "Quintero" in resumen and "(comuna)" not in resumen, resumen
         assert at.session_state["resultado"]["caso"]["comuna"] == "Quintero"
-    con_demo(revisar, con_ejemplo=False)
+
+    from vet_agent import api
+    carpeta_original = api.CARPETA_ESCENARIOS
+    api.CARPETA_ESCENARIOS = ESCENARIOS_PRUEBA
+    try:
+        con_demo(revisar, con_ejemplo=False)
+    finally:
+        api.CARPETA_ESCENARIOS = carpeta_original
 
 
 def prueba_vista_demo_obligatorios_pendientes():

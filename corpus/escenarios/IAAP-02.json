@@ -1,0 +1,108 @@
+{
+  "id_escenario": "IAAP-02",
+  "titulo": "Detección de H5 con registros opuestos sobre contacto con aves silvestres",
+  "version": "borrador_3",
+  "autor": "Walter Olarte Ramírez",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Gallinas adultas de postura y patos domésticos",
+    "sistema_productivo": "Gallinas adultas de postura y patos domésticos. Traspatio familiar ficticio con 120 gallinas y 20 patos, 140 aves al inicio. Gallinero nocturno de 70 m² y patio exterior. Autoconsumo y venta ocasional; sin vacunación contra influenza aviar registrada en el caso.",
+    "region": "Coquimbo",
+    "comuna": "Los Vilos",
+    "fecha_evento": "2026-01-09",
+    "n_animales": 140,
+    "signos_clinicos": [
+      "decaimiento",
+      "menor consumo",
+      "descarga nasal"
+    ],
+    "mortalidad_pct": 0.0,
+    "morbilidad_pct": 5.71,
+    "clima": {
+      "temperatura_media_c": 20.5,
+      "humedad_relativa_pct": 66.0,
+      "precipitacion_mm": 0.0
+    },
+    "aves_silvestres_cercanas": "Un pequeño embalse está a 600 m del gallinero; se observan aves acuáticas silvestres sin muestreo. El responsable declara que ninguna de sus aves salió del recinto durante enero. En cambio, la bitácora simulada del cuidador registra que los patos domésticos accedieron al borde del embalse los días 06, 07 y 08-01. Los dos relatos no han sido conciliados.",
+    "historial_brotes_zona": "El responsable no recuerda episodios anteriores de mortalidad inusual en su grupo. No se aporta registro oficial comunal o provincial. Antecedentes territoriales oficiales: no verificado.",
+    "movimientos_animales": "Sin compra, ingreso ni venta de aves entre 20-12-2025 y el corte. El movimiento de los patos hacia el embalse está en disputa entre la declaración y la bitácora. Un vehículo entrega alimento el 05-01 y permanece fuera del gallinero; no se dispone de antecedentes sobre visitas del vehículo a otros predios.",
+    "indicadores_productivos": "Densidad nocturna inicial: 140 aves/70 m² = 2 aves/m². Postura habitual de las 120 gallinas: 90 huevos diarios; al corte, 84 huevos diarios. Consumo grupal de alimento de 16 a 15,5 kg/día. Son totales del grupo, no tasas por gallina. Venta ocasional previa; no se registran salidas de huevos ni aves durante el evento. Contexto del evento: Sector rural ficticio de Los Vilos, Región de Coquimbo, Chile. Evento simulado del 09 al 11 de enero de 2026, verano. Corte de información al 11-01-2026, 18:00. El predio y el evento son inventados; no representan un foco real. Registro clínico y mortalidad: Desde el 09-01, ocho gallinas presentan decaimiento y menor consumo; tres de ellas tienen descarga nasal. Se observan los mismos ocho individuos hasta el corte. Muertes por día: 09-01, 0; 10-01, 0; 11-01, 0. Mortalidad acumulada 0/140 = 0 %. Al corte hay 140 aves vivas; ocho enfermas observadas: 8/140 = 5,71 % del grupo y 8/120 = 6,67 % de las gallinas. No se registran signos en los 20 patos. Antecedentes de muestreo: Datos simulados. El 10-01 un profesional habilitado obtiene muestras de cuatro de las ocho gallinas con signos, identificadas individualmente. Informe ficticio del 11-01: RT-qPCR influenza A/gen M positiva en las cuatro y RT-qPCR H5 positiva en esas mismas cuatro aves; controles analíticos válidos. Los resultados M y H5 corresponden a las mismas cuatro aves. No se aporta resultado N1, patotipo ni confirmación oficial. Contexto climático y ambiental: Valores simulados de las 72 horas: temperatura media 20,5 °C, humedad relativa media 66 % y precipitación acumulada 0 mm. Un pequeño embalse está a 600 m del gallinero; se observan aves acuáticas silvestres sin muestreo. El responsable declara que ninguna de sus aves salió del recinto durante enero. En cambio, la bitácora simulada del cuidador registra que los patos domésticos accedieron al borde del embalse los días 06, 07 y 08-01. Los dos relatos no han sido conciliados.",
+    "resultados_laboratorio": [
+      {
+        "prueba": "RT-qPCR influenza A / gen M",
+        "resultado": "Positiva en cuatro gallinas con signos, las mismas cuatro analizadas para H5. Muestras tomadas el 2026-01-10 por un profesional habilitado, con identificación individual y controles analíticos válidos.",
+        "fecha": "2026-01-11"
+      },
+      {
+        "prueba": "RT-qPCR H5",
+        "resultado": "Positiva en las mismas cuatro gallinas del análisis influenza A / gen M, no en cuatro aves adicionales. Controles analíticos válidos. N1, patotipo y confirmación oficial no aportados.",
+        "fecha": "2026-01-11"
+      }
+    ]
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "alto",
+    "factores_riesgo": [
+      "F1.",
+      "Acceso potencial a agua compartida con aves silvestres, condicionado a verificar la bitácora",
+      "las aves acuáticas son el principal reservorio de influenza A. [C34, manual AFC, 4 y 6",
+      "D8, A].",
+      "F2.",
+      "Registros opuestos que dificultan reconstruir la exposición",
+      "no deben resolverse eligiendo el relato más conveniente. [D3, 8.1 y 8.5].",
+      "F3.",
+      "Un vehículo de alimento con contactos externos desconocidos constituye un antecedente que investigar, no prueba de una vía de entrada. [C34, considerando 5].",
+      "El clima seco y templado no permite descartar una detección molecular",
+      "tampoco prueba una fuente ambiental.",
+      "Razonamiento del equipo, sin fuente específica."
+    ],
+    "hipotesis_alternativas": [
+      "Influenza A/H5 es la hipótesis principal para explicar las detecciones, con N1 y patotipo desconocidos.",
+      "Otras enfermedades respiratorias, incluida Newcastle (APMV-1), o factores de manejo podrían coexistir y explicar parte de los signos.",
+      "No se consideran confirmados y no explican por sí solos la señal H5. [D8, B.1 y B.1.4]."
+    ],
+    "informacion_faltante": [
+      "La contradicción es concreta: confinamiento sin salidas según el responsable frente a tres accesos al embalse según la bitácora.",
+      "Se necesita comprobar fechas, identidad de las aves y condiciones del registro, sin asumir que una versión es verdadera.",
+      "Faltan N1, patotipo, confirmación oficial, información diagnóstica de los patos y antecedentes oficiales de la zona",
+      "la falta de registros oficiales aportados no demuestra ausencia de circulación viral.",
+      "La ausencia de signos en los patos no descarta infección, porque algunos virus de alta patogenicidad no producen enfermedad evidente en patos domésticos.",
+      "No se conoce infección en las aves silvestres. [D3, 8.1 y 8.5",
+      "D8, A, B.1.4 y B.1.5.2]."
+    ],
+    "medidas_inmediatas": [
+      "M1.",
+      "Sugerir comunicar prontamente la sospecha y los resultados al SAG, junto con ambos registros, sin esperar mortalidad ni N1.",
+      "Se informa el deber de aviso",
+      "el sistema no ejecuta la notificación ni emite una resolución. [D3, 8 y 8.1].",
+      "M2.",
+      "Sugerir proteger el alimento frente a aves externas y evitar que los patos compartan cuerpos de agua con aves silvestres, conforme a la evaluación del responsable y del SAG. [C34, manual AFC, 6].",
+      "M3.",
+      "Recomendar retirar materia orgánica de los equipos y luego desinfectarlos con productos autorizados según etiqueta. [C34, manual AFC, 5].",
+      "M4.",
+      "Solicitar orientación profesional sobre muestras y manejo.",
+      "Las cuarentenas, restricciones y demás decisiones oficiales corresponden a la autoridad. [D3, 8.1 a 8.4",
+      "D8, B.1]."
+    ],
+    "protocolos_aplicables": [
+      "D3 describe la atención de sospechas, investigación y medidas de la autoridad",
+      "no exige esperar una prueba N1 para avisar. D8 distingue detección, subtipificación y caracterización de patogenicidad. C34 y su manual AFC respaldan proteger alimento, evitar contacto acuático con aves silvestres y limpiar antes de desinfectar. Se usa la actualización de 2024 junto al plan de 2023",
+      "no se presenta su referencia a la norma anterior como vigente. [D3, 8, D8, B.1.4 y B.1.5.2, C34, manual AFC, 5 y 6]."
+    ],
+    "documentos_esperados": [
+      "D3",
+      "D8",
+      "C34",
+      "Manual AFC o traspatio D-VYC-VIS-PP-005 v02, asociado a C34",
+      "OMSA web, Avian influenza, fuente complementaria pendiente de revisión de E4"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
+    ]
+  }
+}

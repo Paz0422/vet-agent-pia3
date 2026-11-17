@@ -31,6 +31,8 @@ Los nombres de campo son los mismos de la Parte A de los escenarios de Investiga
 
 ## Escenarios de Investigación (corpus/escenarios/IAAP-XX.json)
 
+`corpus/escenarios/` tiene solo los 12 escenarios de las corridas oficiales (IAAP-01 a IAAP-12) y el Excel del que salen (`datos_cargables.xlsx`). `IAAP-00`, la fila de ejemplo de la planilla, está en `corpus/escenarios_prueba/` y solo la usan las pruebas, así no entra en `evaluar`.
+
 Cada escenario es un JSON que `python -m vet_agent.datos.cargar_escenarios <excel>` genera a partir del Excel de Investigación:
 
 | campo | qué significa | tipo | ejemplo |
