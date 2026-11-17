@@ -160,6 +160,8 @@ resultados/
 └── prueba_seco/                                    ← corrida corta con el modelo real (IAAP-12); ver su README
 ```
 
+`salidas_agentes/` la crea `evaluar.py` junto a `registro_corridas.csv`. Guarda un JSON por cada intento de B3, `<id_corrida>.json` (ej. `B3-IAAP-01-R2-I1.json`), con la salida de cada agente tal como la entregó (`climatico`, `diagnostico`, `bioseguridad`, con su `evidencia`). Si hubo rondas de debate, queda la última salida de cada agente. Si el intento falló después de que los agentes respondieron (por ejemplo, falló el moderador), el archivo igual se guarda, con `"estado": "error"`. B1 y B2 no guardan nada en esta carpeta.
+
 `ejemplo_registro_corridas.csv` tiene las mismas columnas que `registro_corridas.csv` (el que escribe `evaluar.py`), pero sus datos son simulados: sirve para mostrar el formato, no como resultado.
 
 ## Limitaciones

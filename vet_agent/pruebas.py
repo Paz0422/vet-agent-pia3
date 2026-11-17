@@ -946,6 +946,45 @@ def prueba_evaluar_tiempos_por_caso():
     assert (fila["B3_s"], fila["intentos_B3"], fila["total_s"], fila["fallidas"]) == ("2.0", 2, "4.0", "B3")
 
 
+def prueba_evaluar_guarda_salidas_agentes_b3():
+    # solo B3 guarda las salidas de los agentes. El moderador falla en el intento 1 (los 3
+    # agentes ya respondieron): ese intento igual queda guardado, con "estado": "error"
+    import tempfile
+    from vet_agent import evaluar
+
+    llamadas_moderador = []
+    consultar_original = moderador.consultar_llm
+
+    def moderador_falla_la_primera_vez(instrucciones, pregunta_llm, agente):
+        llamadas_moderador.append(1)
+        if len(llamadas_moderador) == 1:
+            raise ValueError("[moderador] falla simulada en el intento 1")
+        return consultar_original(instrucciones, pregunta_llm, agente)
+
+    moderador.consultar_llm = moderador_falla_la_primera_vez
+    try:
+        with tempfile.TemporaryDirectory() as temporal:
+            registro = pathlib.Path(temporal) / "registro.csv"
+            con_buscador_de_prueba(lambda: evaluar.evaluar([("IAAP-T1", CASO_EVALUAR)], 1, registro),
+                                   usar_colecciones=True)
+            carpeta = registro.with_name(evaluar.CARPETA_SALIDAS_AGENTES)
+            archivos = sorted(p.name for p in carpeta.iterdir())
+            guardados = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in carpeta.iterdir()}
+    finally:
+        moderador.consultar_llm = consultar_original
+
+    # B1 y B2 no guardan nada; B3 guarda el intento fallido y el bueno
+    assert archivos == ["B3-IAAP-T1-R1-I1.json", "B3-IAAP-T1-R1-I2.json"], archivos
+    for id_corrida, datos in guardados.items():
+        assert datos["id_corrida"] == id_corrida
+        assert (datos["escenario"], datos["repeticion"]) == ("IAAP-T1", 1)
+        assert datos["version_sistema"]
+        for agente in ("climatico", "diagnostico", "bioseguridad"):
+            assert isinstance(datos[agente], dict) and "evidencia" in datos[agente], (id_corrida, agente)
+    assert guardados["B3-IAAP-T1-R1-I1"]["estado"] == "error" and guardados["B3-IAAP-T1-R1-I1"]["intento"] == 1
+    assert guardados["B3-IAAP-T1-R1-I2"]["estado"] == "ok" and guardados["B3-IAAP-T1-R1-I2"]["intento"] == 2
+
+
 def prueba_llm_respuesta_cortada_por_max_tokens():
     # el modelo llego a max_tokens: error claro, sin volver a preguntar
     class Mensaje:
@@ -1425,6 +1464,7 @@ if __name__ == "__main__":
         prueba_evaluar_tiempos_por_caso,
         prueba_evaluar_cache_reintento_b3_no_repite_agentes,
         prueba_evaluar_cache_repeticion_nueva_vuelve_a_llamar,
+        prueba_evaluar_guarda_salidas_agentes_b3,
         prueba_llm_respuesta_cortada_por_max_tokens,
 
         prueba_traer_clima,
