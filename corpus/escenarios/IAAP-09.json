@@ -1,0 +1,85 @@
+{
+  "id_escenario": "IAAP-09",
+  "titulo": "Mortalidad y baja de postura en gallinas con datos de movimiento y laboratorio no verificados",
+  "version": "borrador_3",
+  "autor": "Cristopher Retamales Pedreros",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Gallinas de postura",
+    "sistema_productivo": "Gallinas de postura de distintas edades en sistema semiintensivo, con venta de huevos. Población estimada de forma imprecisa entre 800 y 1.200 aves, sin censo actualizado ni registro de lotes. No se informa si el predio tiene iniciación de actividades.",
+    "region": "Metropolitana",
+    "comuna": "Talagante",
+    "fecha_evento": "2026-07-25",
+    "n_animales": null,
+    "signos_clinicos": [
+      "plumaje erizado",
+      "decaimiento",
+      "plumaje sucio alrededor de la cloaca en algunas aves"
+    ],
+    "mortalidad_pct": null,
+    "morbilidad_pct": null,
+    "clima": {
+      "temperatura_media_c": 9.2,
+      "humedad_relativa_pct": 85.0,
+      "precipitacion_mm": null
+    },
+    "aves_silvestres_cercanas": null,
+    "historial_brotes_zona": "El denunciante no aporta antecedentes oficiales y no consta consulta al sistema de vigilancia del SAG. Antecedentes territoriales oficiales: no verificado.",
+    "movimientos_animales": "El propietario declara haber comprado 150 gallinas adultas en una feria local o a un comerciante informal hace unos 7 días (alrededor del 18-07), sin formulario de movimiento animal ni certificado sanitario. No hay registros de ingreso de vehículos, insumos ni visitas. Aislamiento de las aves desconocidas.",
+    "indicadores_productivos": "El encargado afirma verbalmente que la postura \"bajó a la mitad\" (estimación aproximada al 50%) en la última semana, pero no hay planillas de recolección de huevos ni registros de venta que permitan cuantificar la producción previa ni la caída medible de manera exacta. Contexto del evento: Sector rural ficticio de la comuna de Talagante, Región Metropolitana, Chile. Evento simulado informado entre el 25 y el 28 de julio de 2026, invierno. Corte de información al 28-07-2026, 12:00. La comuna existe, pero el predio, los recuentos y la denuncia son inventados; no constituyen un reporte oficial. Registro clínico y mortalidad: Relato verbal del encargado, no verificado por un profesional: 45 gallinas muertas entre el 25 y el 28-07, sin registro diario. Signos observados: plumaje erizado, decaimiento y algunas aves con plumaje sucio alrededor de la cloaca. Sin examen clínico veterinario. Sin censo exacto no se puede calcular la mortalidad porcentual exacta. Morbilidad: desconocida. Antecedentes de muestreo: Al corte no se han tomado muestras y no hay resultados de laboratorio ni necropsia. Contexto climático y ambiental: Sin estación meteorológica en el predio. Datos territoriales aproximados del periodo: temperatura media 9,2 °C, humedad relativa 85 % y sin precipitaciones registradas.",
+    "resultados_laboratorio": null
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "alto",
+    "factores_riesgo": [
+      "F1.",
+      "Ingreso de aves sin certificado, desconociéndose si existió periodo de aislamiento (no se puede afirmar ausencia de aislamiento sin información). [C34, manual AFC, 5",
+      "C34, manual de planteles, 6.5].",
+      "F2.",
+      "Sin registros de ingreso de vehículos, insumos ni visitas. [C34, manual de planteles, 5, 6.2 y 6.3].",
+      "F3.",
+      "Sin censo ni registro diario de mortalidad y postura, lo que impide delimitar el evento. [C34, manual de planteles, 8.5",
+      "D3, 8.1]."
+    ],
+    "hipotesis_alternativas": [
+      "Influenza aviar es una hipótesis prioritaria a investigar.",
+      "Newcastle (APMV-1), laringotraqueítis infecciosa, bronquitis infecciosa, coriza aviar o problemas de manejo y nutrición también pueden explicar la mortalidad y la baja de postura.",
+      "Ninguna alternativa está demostrada sin pruebas diagnósticas. [D8, A y B.1]."
+    ],
+    "informacion_faltante": [
+      "Faltan el censo exacto, el registro diario de mortalidad y postura, la producción previa, la fecha exacta, el origen y la documentación de las aves compradas, si estas murieron, el examen clínico, la necropsia, las muestras y los resultados de laboratorio, la mortalidad basal y los antecedentes oficiales del territorio.",
+      "Sin denominador no se calcula mortalidad porcentual ni se asume cero en los datos faltantes. [D3, 8.1 y 8.5",
+      "C34, manual de planteles, 8.5]."
+    ],
+    "medidas_inmediatas": [
+      "M1.",
+      "Sugerir comunicar la sospecha al SAG de inmediato, para la atención de la denuncia y la toma de muestras por un médico veterinario oficial. [D3, 8 y 8.1].",
+      "M2.",
+      "Sugerir no vender ni regalar aves ni huevos hasta recibir la indicación del SAG",
+      "la inmovilización es una decisión de la autoridad y el sistema no la ordena. [D3, 8.1].",
+      "M3.",
+      "Recomendar al encargado no manipular aves muertas sin protección, porque la intervención con aves muertas es una actividad de riesgo elevado, y limitar el acceso de personas externas. [E5, 7 y 9",
+      "C34, manual de planteles, 6.3].",
+      "M4.",
+      "No sacrificar aves ni aplicar tratamientos por cuenta propia",
+      "esas decisiones corresponden a la autoridad y al veterinario. [D3, 8.4]."
+    ],
+    "protocolos_aplicables": [
+      "D3 establece el procedimiento para atención de denuncias por parte del SAG e investigación de sospechas con datos incompletos. C34 regula la obligación de mantener registros de bioseguridad, censo y trazabilidad (FMA) en planteles avícolas. C21 norma los requerimientos diagnósticos internacionales para definir la presencia o ausencia de IAAP. [D3, 8.1 y 8.2, C34, 5, 6 y 8, C21, Art. 10.4.1]."
+    ],
+    "documentos_esperados": [
+      "D3",
+      "C34",
+      "C21",
+      "E5"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
+    ]
+  }
+}

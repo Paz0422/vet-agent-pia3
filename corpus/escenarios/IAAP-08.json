@@ -1,0 +1,101 @@
+{
+  "id_escenario": "IAAP-08",
+  "titulo": "Caída severa de postura y letargia tras ingreso de reemplazos, con RT-PCR negativa a influenza A",
+  "version": "borrador_3",
+  "autor": "Cristopher Retamales Pedreros",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Gallinas de postura comercial (Gallus gallus)",
+    "sistema_productivo": "Gallinas de postura comercial en piso con cama profunda y nidos automáticos. Plantel industrial ficticio de 25.000 aves en 2 pabellones de 12.500 aves cada uno. Producción de huevo para el mercado regional.",
+    "region": "Metropolitana",
+    "comuna": "San Bernardo",
+    "fecha_evento": "2026-06-18",
+    "n_animales": 25000,
+    "signos_clinicos": [
+      "letargia",
+      "estornudos esporádicos",
+      "secreción nasal serosa",
+      "sacudidas de cabeza",
+      "estertores traqueales",
+      "conjuntivitis ligera",
+      "postración"
+    ],
+    "mortalidad_pct": 3.5,
+    "morbilidad_pct": null,
+    "clima": {
+      "temperatura_media_c": 7.8,
+      "humedad_relativa_pct": 89.0,
+      "precipitacion_mm": 12.4
+    },
+    "aves_silvestres_cercanas": "Se registra alta condensación dentro de los pabellones por una falla de ventilación.",
+    "historial_brotes_zona": "Sin focos de IAAP informados en la comuna ni en un radio de 30 km durante los últimos 6 meses, según el encargado. Antecedentes territoriales oficiales: no verificado.",
+    "movimientos_animales": "15-06: ingreso de 2.500 gallinas de reemplazo, con certificado sanitario oficial y PCR previa en el predio de origen (que buscaba específicamente influenza A) con resultado negativo; la guía de despacho y el formulario de movimiento registran su alojamiento aislado dentro del pabellón 2. 17-06: ingreso de un camión de alimento sin desinfección en portería, porque el rodiluvio estaba fuera de servicio. No se registran otros ingresos de aves.",
+    "indicadores_productivos": "Pabellón 2. Postura: de 86,0 % (18-06) a 22,0 % (22-06), 64 puntos menos en 96 horas. Muchos huevos con cáscara blanda o corrugada, albúmina acuosa y despigmentación. Consumo de alimento de 110 a 82 g/ave/día (25 % menos). Consumo de agua 10 % menor. Contexto del evento: Sector rural ficticio de la comuna de San Bernardo, Región Metropolitana, Chile. Evento simulado del 19 al 22 de junio de 2026, invierno; el 18-06 se usa como día de referencia de la postura. Corte de información al 22-06-2026, 18:00. La comuna existe, pero el plantel y el evento son inventados; no constituyen una denuncia real. Registro clínico y mortalidad: Registros del pabellón 2 (12.500 aves). 19-06: 8 muertes; letargia leve y estornudos esporádicos. 20-06: 45 muertes; secreción nasal serosa, sacudidas de cabeza, estertores traqueales y conjuntivitis leve; sin cianosis de cresta ni edema facial. 21-06: 180 muertes; letargia moderada y postración. 22-06: 205 muertes. Total: 438 muertes, todas en el pabellón 2. Mortalidad acumulada del pabellón 2: 438/12.500 = 3,5 %; del plantel: 438/25.000 = 1,8 %. Morbilidad: no registrada. Antecedentes de muestreo: Datos simulados. Hisopados traqueales y cloacales procesados el 21-06 por el Laboratorio Oficial del SAG. RT-PCR en tiempo real: negativa para influenza A y para los subtipos H5 y H7. Diagnóstico diferencial por PCR: positivo para virus de bronquitis infecciosa aviar (IBV, cepa variante) y para Mycoplasma gallisepticum. No se informa si el muestreo fue en pools o individual, ni cuántas aves se muestrearon ni la fecha de toma. Contexto climático y ambiental: Valores simulados de las 96 horas: temperatura media 7,8 °C (mínima 1,5 °C), humedad relativa media 89 % y precipitación acumulada 12,4 mm. Se registra alta condensación dentro de los pabellones por una falla de ventilación.",
+    "resultados_laboratorio": [
+      {
+        "prueba": "RT-PCR en tiempo real influenza A (H5/H7)",
+        "resultado": "Negativo, informado por el Laboratorio Oficial del SAG. Hisopados traqueales y cloacales procesados el 2026-06-21.",
+        "fecha": "2026-06-21"
+      },
+      {
+        "prueba": "RT-PCR diferencial para Bronquitis Infecciosa Aviar y Mycoplasma gallisepticum",
+        "resultado": "Dos detecciones positivas: Bronquitis Infecciosa Aviar (IBV, cepa variante) y Mycoplasma gallisepticum.",
+        "fecha": null
+      }
+    ]
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "moderado",
+    "factores_riesgo": [
+      "F1.",
+      "Ingreso de un camión de alimento sin desinfección por rodiluvio fuera de servicio",
+      "el manual de planteles exige desinfectar todo vehículo antes de ingresar al sector. [C34, manual de planteles, 6.2].",
+      "F2.",
+      "Ingreso reciente de 2.500 gallinas de reemplazo al mismo pabellón afectado, dentro del periodo de incubación de 14 días. [C21, 10.4.1",
+      "C34, manual de planteles, 6.5].",
+      "F3.",
+      "Frío, humedad alta y falla de ventilación con condensación",
+      "pueden favorecer la difusión de agentes respiratorios.",
+      "Razonamiento del equipo, sin fuente específica en el corpus."
+    ],
+    "hipotesis_alternativas": [
+      "Bronquitis infecciosa aviar complicada con Mycoplasma gallisepticum es una hipótesis altamente compatible con los resultados disponibles.",
+      "La influenza aviar no está descartada por una sola ronda de RT-PCR.",
+      "Newcastle (APMV-1) y otras causas de caída de postura deben considerarse en el diagnóstico diferencial. [D8, A y B.1]."
+    ],
+    "informacion_faltante": [
+      "La tensión principal es la severidad de la caída de postura frente a la RT-PCR negativa.",
+      "Faltan el número de aves muestreadas, la fecha de toma, si el análisis fue individual o por pools y su representatividad estadística.",
+      "Faltan la necropsia, los valores Ct, la evaluación del pabellón 1, la morbilidad y la situación y eficacia comprobada del aislamiento de las gallinas de reemplazo dentro del pabellón 2. [D3, 8.1",
+      "D8, B.1.5.2]."
+    ],
+    "medidas_inmediatas": [
+      "M1.",
+      "Sugerir mantener la comunicación con el SAG, entregarle los registros de mortalidad, postura e ingresos, y consultar si corresponde repetir el muestreo. [D3, 8.1 y 8.2].",
+      "M2.",
+      "Sugerir no movilizar aves, huevos ni guano del pabellón 2 hasta que el SAG lo indique",
+      "la restricción de movimientos es una decisión de la autoridad y el sistema no la ordena. [D3, 8.1].",
+      "M3.",
+      "Sugerir reparar el rodiluvio y reforzar la desinfección de vehículos en portería. [C34, manual de planteles, 6.2].",
+      "M4.",
+      "Sugerir que el veterinario tratante evalúe la ventilación y el manejo de las enfermedades respiratorias detectadas.",
+      "El sistema no recomienda medicamentos. [C34, manual de planteles, 5]."
+    ],
+    "protocolos_aplicables": [
+      "D3 establece la atención de denuncias e investigación de sospechas descartadas o discrepantes por el SAG. C34 exige la aplicación de medidas de bioseguridad permanente (rodiluvios, ventilación, manejo de registros productivos) en planteles de postura. C21 norma el criterio de exclusión de foco de IAAP mediante pruebas de RT-PCR validadas. [D3, 8.1 y 8.2, C34, 5, 6 y 8, C21, Art. 10.4.1]."
+    ],
+    "documentos_esperados": [
+      "D3",
+      "C34",
+      "C21"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
+    ]
+  }
+}

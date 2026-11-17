@@ -1,0 +1,101 @@
+{
+  "id_escenario": "IAAP-05",
+  "titulo": "Mortalidad respiratoria en broilers con influenza A negativa y APMV-1 positivo sin caracterización",
+  "version": "borrador_3",
+  "autor": "Andrés Lugo Briceño",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Pollos broiler de 29 días",
+    "sistema_productivo": "Pollos broiler de 29 días, plantel industrial de engorda con 6.000 aves en un galpón. El lote único ingresó el 2026-09-02.",
+    "region": "Maule",
+    "comuna": "San Javier",
+    "fecha_evento": "2026-09-21",
+    "n_animales": 6000,
+    "signos_clinicos": [
+      "depresión",
+      "tos",
+      "descarga nasal",
+      "diarrea verdosa",
+      "signos neurológicos en parte de las aves"
+    ],
+    "mortalidad_pct": 9.0,
+    "morbilidad_pct": 26.0,
+    "clima": {
+      "temperatura_media_c": 18.0,
+      "humedad_relativa_pct": 68.0,
+      "precipitacion_mm": 2.0
+    },
+    "aves_silvestres_cercanas": "Según el encargado, no hay humedales a menos de 5 km y no se observaron aves silvestres muertas en el predio.",
+    "historial_brotes_zona": "El encargado no conoce focos de influenza aviar en la comuna durante los 12 meses previos. El registro oficial provincial de enfermedades respiratorias aún no ha sido revisado.",
+    "movimientos_animales": "El lote único ingresó el 2026-09-02. No hubo ingresos adicionales de aves entre el 2026-09-03 y el cierre del evento. Un camión de alimento compartido con otros dos planteles ingresó el 2026-09-17 y 2026-09-21; la guía de desinfección del 21-09 está incompleta. Un técnico de mantención entró el 2026-09-20, sin hora de salida registrada.",
+    "indicadores_productivos": "Consumo de agua 15 % menor y alimento 20 % menor el 24-09; peso promedio al día 28 de 1,25 kg frente a 1,45 kg esperado. No había faena programada antes del 2026-10-03 y no se despacharon aves durante el evento. Contexto del evento: San Javier, Región del Maule. Evento del 2026-09-21 al 2026-09-25 (primavera). El encargado solicita orientación al SAG el 2026-09-25. Registro clínico y mortalidad: Depresión, tos, descarga nasal, diarrea verdosa y signos neurológicos en parte de las aves. Muertes diarias: 21-sep 12; 22-sep 34; 23-sep 86; 24-sep 192; 25-sep 216. Mortalidad acumulada: 540/6.000 = 9,0 %. Morbilidad estimada: 1.560 aves = 26,0 %. Antecedentes de muestreo: Muestras orofaríngeas y cloacales de 20 aves tomadas el 2026-09-25. RT-PCR influenza A, gen M: negativo, 2026-09-26. RT-PCR APMV-1: positivo, 2026-09-26. No hay caracterización de patogenicidad ni informe oficial conclusivo para atribuir enfermedad de Newcastle. Contexto climático: Semana 2026-09-19 a 2026-09-25: temperatura media 18,0 °C; humedad relativa media 68 %; precipitación acumulada 2 mm. No hay humedales a menos de 5 km según el encargado y no se observaron aves silvestres muertas en el predio.",
+    "resultados_laboratorio": [
+      {
+        "prueba": "RT-PCR influenza A / gen M",
+        "resultado": "Negativo. Muestras orofaríngeas y cloacales de 20 aves tomadas el 2026-09-25.",
+        "fecha": "2026-09-26"
+      },
+      {
+        "prueba": "RT-PCR APMV-1",
+        "resultado": "Positivo. No hay caracterización de patogenicidad ni informe oficial conclusivo para atribuir enfermedad de Newcastle.",
+        "fecha": "2026-09-26"
+      }
+    ]
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "moderado",
+    "factores_riesgo": [
+      "Alta mortalidad con signos multisistémicos",
+      "camión compartido con registro de desinfección incompleto",
+      "trazabilidad de visitas incompleta.",
+      "La ausencia de humedal cercano y de aves silvestres muertas debilita, pero no elimina, una hipótesis ambiental.",
+      "C34 aporta el marco de verificación de desinfección, barreras y registros. [C34]"
+    ],
+    "hipotesis_alternativas": [
+      "Enfermedad asociada a APMV-1, incluida enfermedad de Newcastle si la caracterización oficial la respalda.",
+      "Influenza A con falso negativo por toma, momento, conservación o representatividad de la muestra, o infección mixta.",
+      "Infección bacteriana respiratoria secundaria, problema de ventilación o intoxicación."
+    ],
+    "informacion_faltante": [
+      "Informe oficial completo y controles de la RT-PCR",
+      "Ct, inhibición y trazabilidad de cada muestra",
+      "repetición de muestras de aves enfermas y recién muertas",
+      "necropsia y diagnóstico diferencial",
+      "caracterización de patogenicidad de APMV-1",
+      "revisión del registro oficial de focos",
+      "ruta y desinfección del camión",
+      "actividad completa del técnico."
+    ],
+    "medidas_inmediatas": [
+      "Se sugiere informar al SAG y entregarle resultados y trazabilidad",
+      "D3 reserva a la autoridad la atención de la sospecha y las medidas de control.",
+      "Se sugiere solicitar revisión de controles y muestreo diferencial conforme a D22 y D8.",
+      "Se sugiere conservar registros y muestras según indicación oficial y reforzar desinfección y registros conforme a C34",
+      "aplicar la protección del personal que corresponda conforme a E5.",
+      "No se ordenan cuarentena, sacrificio, restricciones ni medicamentos. [D3] [D22] [D8] [C34] [E5]"
+    ],
+    "protocolos_aplicables": [
+      "D3 · Plan de Contingencia Influenza Aviar v6.0. D22 · Instructivo SAG D-ATR-AAT-013 v03. D8 · Manual Terrestre OMSA 3.3.4. C34 · Res. Ex. N° 7.695/2024. E5 · Bioseguridad de las personas ante riesgo de zoonosis. Fuente externa pendiente de revisión de E4: OMSA, Código Terrestre, capítulo 10.9, infección con virus de Newcastle."
+    ],
+    "documentos_esperados": [
+      "A2",
+      "A3",
+      "A4",
+      "D3",
+      "D8",
+      "D22",
+      "C34",
+      "C21",
+      "E5",
+      "OMSA-ND, capítulo 10.9 del Código Terrestre, fuente externa pendiente de revisión de E4"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
+    ]
+  }
+}

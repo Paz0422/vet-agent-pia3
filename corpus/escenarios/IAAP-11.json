@@ -1,0 +1,99 @@
+{
+  "id_escenario": "IAAP-11",
+  "titulo": "Bioseguridad declarada sin brechas, contradicha por portería y sensores en plantel broiler",
+  "version": "borrador_5",
+  "autor": "Alexander Riveros Ávila",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Pollos broiler de 33 días",
+    "sistema_productivo": "Pollos broiler de un lote único, plantel industrial de engorda (predio ficticio \"Avícola El Litre\"). 3 galpones de 25.000 aves: 75.000 aves en total. Convención de edad: los pollitos de un día ingresaron el 2026-08-16 (día 1); al 2026-09-17 tienen 33 días.",
+    "region": "Valparaíso",
+    "comuna": "La Calera",
+    "fecha_evento": "2026-09-14",
+    "n_animales": 75000,
+    "signos_clinicos": [
+      "depresión",
+      "menor consumo",
+      "estertores respiratorios",
+      "cabeza hinchada en algunas aves"
+    ],
+    "mortalidad_pct": 0.6,
+    "morbilidad_pct": 3.3,
+    "clima": {
+      "temperatura_media_c": 13.5,
+      "humedad_relativa_pct": 72.0,
+      "precipitacion_mm": 4.0
+    },
+    "aves_silvestres_cercanas": "Estero a unos 2 km del plantel. El encargado no ha observado aves acuáticas dentro del predio. Mallas de los 3 galpones en buen estado según la última revisión interna (2026-09-01).",
+    "historial_brotes_zona": "Según el encargado, no hay brotes registrados en aves de corral en la comuna en los últimos 12 meses. El chofer de la empresa de alimento comentó que el 2026-09-11 había descargado antes en un plantel de otra comuna de la región \"en investigación por sospecha de influenza aviar\". El dato no está confirmado oficialmente.",
+    "movimientos_animales": "Aves: pollitos de un día ingresados el 2026-08-16 desde la incubadora de la empresa; sin otros ingresos de aves. Planilla de bioseguridad del plantel (declarada por el encargado): \"sin visitas externas\" en septiembre; arco sanitario \"operativo\"; pediluvios \"renovados a diario\"; todos los vehículos \"desinfectados\". Cuaderno de portería: camión de alimento ingresó el 2026-09-11 a las 10:40 hasta el silo del galpón 3; no hay firma ni registro de desinfección para ese ingreso. El 2026-09-12 ingresó un médico veterinario de la empresa integradora que no figura en la planilla. Cámaras de la entrada (2026-09-11): el camión pasa por el costado del arco sanitario, que no se ve en funcionamiento. Las imágenes no muestran si se aplicó otro método de desinfección. Alimento: entregas el 4, 8, 11 y 15-sep. Personas: 3 operarios (uno por galpón) y un jefe de plantel que recorre los 3 galpones.",
+    "indicadores_productivos": "Densidad: 25.000 aves por galpón. Consumo de agua del galpón 3 (sensor del bebedero): 25 % menor que el promedio de los 7 días previos, el 16-sep. El encargado informó \"consumo normal\" en su reporte diario del mismo día. Consumo de alimento del galpón 3: 15 % menor al habitual el 16-sep. Peso promedio del galpón 3 al día 31 (2026-09-15): 1,6 kg (esperado según la tabla del plantel: 1,8 kg). Faena programada para el día 42 (2026-09-26). Contexto del evento: La Calera, Región de Valparaíso. Inicio del evento: 2026-09-14 (primavera). Notificación al SAG el 2026-09-17. Corte de la información: 2026-09-18; los recuentos de muertes llegan hasta el 17-sep. Registro clínico y mortalidad: Galpón 3: depresión, menor consumo, estertores respiratorios y algunas aves con cabeza hinchada. Galpones 1 y 2 sin cambios (15 a 20 muertes diarias, nivel habitual). Muertes por día, galpón 3: 13-sep: 18 · 14-sep: 30 · 15-sep: 38 · 16-sep: 95 · 17-sep: 260. Muertes en el galpón 3 (14 al 17-sep): 423 aves, equivalentes a 0,6 % de la población del plantel (75.000) o 1,7 % del galpón 3 (25.000). La cifra no incluye las muertes habituales de los galpones 1 y 2. Morbilidad estimada al 17-sep: unas 2.500 aves con signos en el galpón 3 (3,3 % del plantel). Antecedentes de muestreo: Muestras tomadas el 2026-09-17 por el médico veterinario oficial (hisopos orofaríngeos y cloacales del galpón 3). Prueba 1: RT-PCR influenza A (gen M) · 2026-09-18 · positivo. Prueba 2: subtipificación H5/H7 pendiente al cierre del caso. Contexto climático y ambiental: Semana 11 al 17-sep: temperatura media 13,5 °C (mínima 5 °C, máxima 23 °C); humedad relativa media 72 %; precipitación acumulada 4 mm. Estero a unos 2 km del plantel. El encargado no ha observado aves acuáticas dentro del predio. Mallas de los 3 galpones en buen estado según la última revisión interna (2026-09-01).",
+    "resultados_laboratorio": [
+      {
+        "prueba": "RT-PCR influenza A / gen M",
+        "resultado": "Positivo. Hisopos orofaríngeos y cloacales del galpón 3 tomados por el médico veterinario oficial el 2026-09-17.",
+        "fecha": "2026-09-18"
+      },
+      {
+        "prueba": "Subtipificación H5/H7",
+        "resultado": null,
+        "fecha": null
+      }
+    ]
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "alto",
+    "factores_riesgo": [
+      "Ingreso de vehículo sin desinfección verificable: el manual de bioseguridad del SAG exige que los vehículos que ingresan al sector pasen por rodiluvio, arco sanitario o aspersión manual y que exista registro verificable (C34, Manual D-VYC-VIS-PP-004, sec. 6.2).",
+      "Aquí no hay registro y las cámaras muestran que el camión no pasó por el arco.",
+      "Visita ausente de la planilla: el manual exige un registro de visitas con formulario de ingreso y visitas autorizadas (C34, sec. 6.3).",
+      "La visita del 12-sep figura en el cuaderno de portería, pero no en la planilla de bioseguridad.",
+      "Posible contacto con otro plantel en investigación: según el chofer, el camión venía de un plantel bajo sospecha.",
+      "Es un dato no confirmado.",
+      "Jefe de plantel que recorre los 3 galpones: posible vía de diseminación entre galpones."
+    ],
+    "hipotesis_alternativas": [
+      "Enfermedad de Newcastle u otra enfermedad respiratoria aguda (signos parecidos)",
+      "se distingue con el diagnóstico de laboratorio diferencial.",
+      "Influenza A de un subtipo distinto de H5/H7 o de baja patogenicidad: depende de la subtipificación pendiente.",
+      "Problema de agua o de bebederos en el galpón 3 (explicaría la menor ingesta, no la RT-PCR positiva)."
+    ],
+    "informacion_faltante": [
+      "Contradicción 1, bioseguridad declarada frente a registrada: la planilla dice \"sin visitas externas\" y \"vehículos desinfectados\", pero la portería y las cámaras muestran un camión sin desinfección registrada y una visita que no aparece en la planilla.",
+      "No se puede dar por cumplido el protocolo solo porque está escrito en la planilla, ni concluir que no hubo ninguna desinfección: las cámaras no excluyen otros métodos.",
+      "Contradicción 2, consumo de agua: el encargado informó \"consumo normal\", mientras el sensor del galpón 3 muestra una baja de 25 % frente a los 7 días previos.",
+      "Antes de preferir una fuente hay que verificar la calibración del sensor, el periodo medido y la referencia que usó el encargado.",
+      "Información para resolverlas: guía de despacho y ruta del camión del 11-sep",
+      "registro del arco sanitario y de su mantención",
+      "grabaciones completas de la entrada",
+      "declaración del chofer y del veterinario de la integradora",
+      "datos de los sensores de agua de los 3 galpones.",
+      "Además falta: la subtipificación H5/H7 y la confirmación oficial del estado del plantel de origen del camión."
+    ],
+    "medidas_inmediatas": [
+      "El SAG ya fue notificado",
+      "según su plan de contingencia, la sospecha se notifica de inmediato (D3, sec. 5).",
+      "Mantener la comunicación y colaboración con el SAG.",
+      "Entregar al SAG los registros reales (cuaderno de portería, cámaras, sensores), no solo la planilla, para que evalúe las posibles vías de ingreso.",
+      "Reforzar el registro y la desinfección de cada ingreso de vehículos y personas, con registro verificable, como indica el manual de bioseguridad (C34, sec. 6.2 y 6.3).",
+      "Revisar que el arco sanitario funcione o, si no, aplicar aspersión manual registrada (C34, sec. 6.2).",
+      "Acciones reguladas: la restricción de movimientos, la cuarentena, el sacrificio sanitario y las zonas de protección y vigilancia las decide y ejecuta el SAG",
+      "el sistema no las ordena (D3, sec. 8.3, 10.1 y 11.1)."
+    ],
+    "protocolos_aplicables": [
+      "C34 · SAG, Res. Ex. N° 7.695/2024: Manual de Bioseguridad en planteles de aves (D-VYC-VIS-PP-004, v02), sec. 6.2 (vehículos, arco y registro) y 6.3 (registro de visitas). D3 · SAG, Plan de Contingencia Influenza Aviar v6.0: sec. 5 (notificación inmediata), 8.1 a 8.4 (atención de la sospecha, muestreo y confirmación), 10.1 y 11.1 (cuarentena, sacrificio y zonas)."
+    ],
+    "documentos_esperados": [
+      "C34",
+      "D3"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
+    ]
+  }
+}

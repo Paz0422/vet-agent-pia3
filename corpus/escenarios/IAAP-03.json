@@ -1,0 +1,95 @@
+{
+  "id_escenario": "IAAP-03",
+  "titulo": "Hallazgo de aves silvestres muertas sin censo ni resultados de laboratorio",
+  "version": "borrador_3",
+  "autor": "Elias Necul",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Aves silvestres de vida libre, identificación de especie preliminar",
+    "sistema_productivo": "Aves silvestres de vida libre en un sector costero ficticio de la comuna de Ancud. No existe un lote productivo ni un propietario de la población. La identificación de especie es preliminar, basada en el relato comunitario; población total expuesta desconocida.",
+    "region": "Los Lagos",
+    "comuna": "Ancud",
+    "fecha_evento": "2026-08-20",
+    "n_animales": null,
+    "signos_clinicos": [
+      "incoordinación en dos aves vivas, sin seguimiento individual"
+    ],
+    "mortalidad_pct": null,
+    "morbilidad_pct": null,
+    "clima": {
+      "temperatura_media_c": 8.5,
+      "humedad_relativa_pct": 88.0,
+      "precipitacion_mm": 18.0
+    },
+    "aves_silvestres_cercanas": "Observación en una ribera utilizada por aves acuáticas libres. No hay mediciones de calidad del agua ni evidencia de contaminación o infección del ambiente.",
+    "historial_brotes_zona": "Los observadores no aportan consulta de vigilancia oficial, recuentos históricos comparables ni antecedentes confirmados de brotes cercanos. Antecedentes territoriales oficiales: no verificado.",
+    "movimientos_animales": "Los movimientos naturales de las aves no están reconstruidos. No se aporta un traslado confirmado de aves por personas ni identificación de contactos con aves domésticas. Un observador indica haber enviado un aviso al SAG el 22-08, pero no consta recepción; estado del aviso: no verificado. No se sabe si personas o animales tuvieron contacto con los cadáveres.",
+    "indicadores_productivos": "Producción, densidad predial y ventas: no aplican a la población silvestre observada. Predios avícolas vinculados: sin información aportada. Contexto del evento: Comuna de Ancud, Región de Los Lagos, Chile. Evento simulado del 20 al 22 de agosto de 2026, invierno. Corte al 22-08-2026, 12:00. La comuna es real, pero el sector de observación, los registros y el evento son inventados; no constituyen una denuncia real. Registro clínico y mortalidad: Tres registros comunitarios simulados describen cadáveres distintos: 20-08, dos aves de aspecto de pato; 21-08, un ave de aspecto de pato y una de aspecto de gaviota; 22-08, un ave de aspecto de pato, una de aspecto de gaviota y una no identificada. Total observado: siete aves muertas (cuatro de aspecto de pato, dos de aspecto de gaviota y una desconocida). El 22-08 se observan además dos aves vivas con incoordinación, sin seguimiento individual. Mortalidad basal y población expuesta: desconocidas. Antecedentes de muestreo: Laboratorio: desconocido. Los antecedentes disponibles no registran toma de muestras, prueba solicitada ni resultados al corte. Estado de conservación de los cadáveres: desconocido. No se aporta necropsia ni examen veterinario. Contexto climático y ambiental: Datos climáticos simulados para las 72 horas: temperatura media 8,5 °C, humedad relativa media 88 % y precipitación acumulada 18 mm. Observación en una ribera utilizada por aves acuáticas libres. No hay mediciones de calidad del agua ni evidencia de contaminación o infección del ambiente.",
+    "resultados_laboratorio": null
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "alto",
+    "factores_riesgo": [
+      "F1.",
+      "Posible exposición de personas o animales a cadáveres, cuya ocurrencia no está confirmada y debe investigarse",
+      "la intervención en zonas con aves muertas es una actividad de riesgo elevado. [E5, 7].",
+      "F2.",
+      "Concentración de aves libres en un ambiente acuático",
+      "es un contexto de posible contacto, sin transmisión demostrada. [D8, A].",
+      "F3.",
+      "Ausencia de seguimiento, laboratorio e información de contactos que impide delimitar el evento.",
+      "No son pruebas de infección ni justifican asignar un foco a la comuna. [D3, 8.1 y 8.5]."
+    ],
+    "hipotesis_alternativas": [
+      "Influenza aviar es una hipótesis a investigar.",
+      "Otras infecciones, incluida Newcastle (APMV-1), intoxicación, alteraciones ambientales o traumatismos también pueden explicar mortalidad y signos en aves libres.",
+      "Ninguna alternativa está demostrada",
+      "se requiere evaluación profesional y pruebas dirigidas.",
+      "Los signos no son exclusivos de influenza. [D8, A y B.1",
+      "D3, 8.1]."
+    ],
+    "informacion_faltante": [
+      "Faltan identificación taxonómica profesional, estimación de población expuesta, mortalidad basal, ubicación y fechas precisas de cada observación, examen, necropsia, muestras y pruebas.",
+      "También falta confirmar la recepción del aviso, los contactos de personas o animales y los antecedentes oficiales de vigilancia",
+      "su ausencia no indica que el sector esté libre ni que exista un foco previo.",
+      "Población expuesta y laboratorio son desconocidos",
+      "producción, densidad y ventas no aplican a una población silvestre.",
+      "Siete cadáveres no son siete aves expuestas: no se calcula 100 % de mortalidad ni se asigna cero a los porcentajes desconocidos.",
+      "Un censo exacto no es condición para analizar el evento. [D3, 8.1 y 8.5",
+      "D8, B.1 y B.1.1]."
+    ],
+    "medidas_inmediatas": [
+      "M1.",
+      "Sugerir confirmar el aviso al SAG y aportar ubicación, fechas, recuentos y datos de contacto sin acercarse a las aves para obtener más información.",
+      "El estado de recepción no está verificado. [D3, 8 y 8.1].",
+      "M2.",
+      "Recomendar no tocar ni trasladar aves enfermas o muertas",
+      "la evaluación, manejo y muestreo corresponden al personal competente. [D3, 8.1 y 8.2",
+      "E5, 7 y 11].",
+      "M3.",
+      "Informar que las personas que intervengan oficialmente requieren capacitación y elementos de protección personal según el nivel de riesgo de la actividad",
+      "no se indica al observador que realice necropsias ni tome muestras. [E5, 4, 7 y 9].",
+      "M4.",
+      "Solicitar orientación de la autoridad sobre seguimiento y contactos.",
+      "No decretar cuarentenas, restricciones ni sacrificio, ni recomendar medicación. [D3, 8 y 9]."
+    ],
+    "protocolos_aplicables": [
+      "D3 establece la atención de denuncias y la investigación por el SAG, incluyendo hallazgos en aves silvestres. D8 respalda el diagnóstico diferencial y las limitaciones de inferir etiología desde los signos. E5 regula la protección de las personas que participan en una emergencia",
+      "no transforma al observador en personal de respuesta. No se aplican automáticamente reglas de un plantel avícola a una población libre ni se inventan distancias de exclusión. [D3, 8.1, 8.2 y 8.5, D8, A y B.1, E5, 2, 4 y 6]."
+    ],
+    "documentos_esperados": [
+      "D3",
+      "D8",
+      "E5",
+      "OMSA web, Avian influenza, fuente complementaria pendiente de revisión de E4"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
+    ]
+  }
+}

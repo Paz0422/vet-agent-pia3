@@ -1,0 +1,114 @@
+{
+  "id_escenario": "IAAP-07",
+  "titulo": "Sospecha de IAAP en plantel de postura tras ingreso de aves de reemplazo y fallas de bioseguridad vehicular",
+  "version": "borrador_3",
+  "autor": "Cristopher Retamales Pedreros",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Gallinas de postura comercial (Gallus gallus)",
+    "sistema_productivo": "Gallinas de postura comercial en jaulas de batería de 4 niveles. Plantel industrial ficticio de 45.000 aves (incluyendo 4.000 de reemplazo) en 3 pabellones de 15.000 aves cada uno (el pabellón 1 incluye los reemplazos). Producción y distribución regional de huevo blanco de consumo.",
+    "region": "Metropolitana",
+    "comuna": "Melipilla",
+    "fecha_evento": "2026-05-10",
+    "n_animales": 45000,
+    "signos_clinicos": [
+      "somnolencia",
+      "plumaje erizado",
+      "apatía",
+      "letargia",
+      "cianosis intensa de crestas y barbillas",
+      "edema periorbitario y facial",
+      "secreción nasal y ocular acuosa-sanguinolenta",
+      "diarrea verdosa acuosa profusa",
+      "postración severa",
+      "incoordinación motora",
+      "ataxia",
+      "cuello torcido",
+      "opistótonos",
+      "distrés respiratorio agudo"
+    ],
+    "mortalidad_pct": 9.3,
+    "morbilidad_pct": null,
+    "clima": {
+      "temperatura_media_c": 13.5,
+      "humedad_relativa_pct": 82.0,
+      "precipitacion_mm": 0.0
+    },
+    "aves_silvestres_cercanas": "El predio está a 8 km de la ribera del río Maipo y de humedales con avifauna acuática migratoria y residente (patos y gaviotas).",
+    "historial_brotes_zona": "Antecedente oficial simulado: hace 21 días la Dirección Regional del SAG informó un foco de IAAP H5N1 en gaviotas dominicanas (Larus dominicanus) en un cuerpo de agua a 14 km del predio.",
+    "movimientos_animales": "03-05-2026: ingreso de 4.000 pollitas de reemplazo de 16 semanas desde un plantel de recría externo de la Región de Valparaíso, integradas directamente a las jaulas del pabellón 1 sin periodo de aislamiento. 08-05 y 09-05: ingreso de un camión de retiro de guano y de un camión de alimento a granel; la bitácora de portería registra que no se lavó el chasis y que el rodiluvio estaba fuera de servicio. Personal técnico de mantención transita entre predios externos y los pabellones sin registro documentado de cambio de vestimenta ni paso por filtro sanitario (no se descartan métodos alternativos de desinfección no registrados).",
+    "indicadores_productivos": "Pabellón 1. Postura (denominador ajustado por aves vivas al día): 88,5 % (09-05), 74,2 % (11-05), 45,0 % (12-05), 28,1 % (13-05) y 18,0 % (14-05). Huevos con cáscara blanda, despigmentados o deformes: 35 % los días 12 y 13. Consumo de alimento (calculado sobre aves vivas): de 115 a 40 g/ave/día (65 % menos). Consumo de agua: de 230 a 138 mL/ave/día (40 % menos). Contexto del evento: Sector rural ficticio de la comuna de Melipilla, Región Metropolitana, Chile. Evento simulado del 11 al 14 de mayo de 2026, otoño. Corte de información al 14-05-2026, 17:00. La comuna existe, pero el plantel, el personal y el evento son inventados; no constituyen una denuncia real. Registro clínico y mortalidad: Registros simulados del pabellón 1 (15.000 aves). 11-05: 15 muertes; somnolencia, plumaje erizado y apatía en filas centrales del nivel 2. 12-05: 120 muertes; cianosis de crestas y barbillas, edema periorbitario y facial, secreción nasal y ocular sanguinolenta y diarrea verdosa. 13-05: 850 muertes; postración, incoordinación, cuello torcido, opistótonos y distrés respiratorio. 14-05: 3.200 muertes en el pabellón 1 y signos leves en la cabecera del pabellón 2. Total: 4.185 muertes, todas en el pabellón 1. Mortalidad acumulada del plantel: 4.185/45.000 = 9,3 %; del pabellón 1: 4.185/15.000 = 27,9 %. Morbilidad: no registrada. Antecedentes de muestreo: Datos simulados. El 13-05 el veterinario privado del predio toma hisopados traqueales y cloacales en medio de transporte viral de 20 aves enfermas y cadáveres frescos. El 14-05 el Laboratorio Oficial del SAG informa RT-PCR en tiempo real positiva para influenza A y para subtipo H5. Informe histopatológico preliminar: vasculitis necrotizante, necrosis multifocal en cresta, bazo e hígado e hiperemia pulmonar. No se aporta N1, secuencia del sitio de corte de HA0 ni patotipo. Contexto climático y ambiental: Valores simulados de las 96 horas: temperatura media 13,5 °C (mínima 6,2 °C, máxima 19,8 °C), humedad relativa media 82 % (60 a 95 %), precipitación acumulada 0 mm y viento predominante de 8,5 km/h del suroeste. El predio está a 8 km de la ribera del río Maipo y de humedales con avifauna acuática migratoria y residente (patos y gaviotas).",
+    "resultados_laboratorio": [
+      {
+        "prueba": "RT-PCR en tiempo real influenza A / subtipo H5",
+        "resultado": "Positivo, procesado por el Laboratorio Oficial del SAG. Hisopados traqueales y cloacales en medio de transporte viral tomados el 2026-05-13 a 20 aves enfermas y cadáveres frescos por el veterinario privado del predio.",
+        "fecha": "2026-05-14"
+      },
+      {
+        "prueba": "Examen histopatológico preliminar",
+        "resultado": "Vasculitis necrotizante sistémica, necrosis multifocal en cresta, bazo e hígado e hiperemia pulmonar severa, descritas como compatibles con virus hipervirulento.",
+        "fecha": null
+      }
+    ]
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "muy_alto",
+    "factores_riesgo": [
+      "F1.",
+      "Ingreso de aves de reemplazo de otro plantel dentro del periodo de incubación de 14 días, sin aislamiento, directamente al pabellón afectado. [C21, 10.4.1",
+      "C34, manual de planteles, 6.5].",
+      "F2.",
+      "Ingreso de camiones de guano y alimento sin desinfección efectiva verificable en bitácora de portería. [C34, manual de planteles, 6.2 y 8.7].",
+      "F3.",
+      "Tránsito de personal técnico sin registro documentado de cambio de vestimenta ni paso por filtro sanitario con zona sucia y limpia delimitadas. [C34, manual de planteles, 6.3].",
+      "F4.",
+      "Proximidad a humedales con aves acuáticas y foco reciente en aves silvestres a 14 km. [C21, 10.4.27 y 10.4.29",
+      "D8, A]."
+    ],
+    "hipotesis_alternativas": [
+      "Influenza aviar H5 es la hipótesis principal, con criterio de confirmación de D3 cumplido y patotipo pendiente.",
+      "La enfermedad de Newcastle (APMV-1), la laringotraqueítis infecciosa y la bronquitis infecciosa debían considerarse en el diagnóstico diferencial",
+      "el resultado H5 hace improbable que expliquen el cuadro por sí solas, pero no descarta una infección mixta. [D8, A y B.1]."
+    ],
+    "informacion_faltante": [
+      "Faltan N1, la secuencia del sitio de corte de HA0 y la caracterización de patogenicidad",
+      "la secuenciación también ayudaría a reconstruir la vía de introducción.",
+      "Faltan la evaluación clínica y el muestreo de los pabellones 2 y 3, la situación sanitaria del plantel de recría de origen y el itinerario previo de los camiones y del personal técnico.",
+      "No se registró la morbilidad. [D8, B.1.4",
+      "C21, 10.4.26",
+      "D3, 8.5 y 8.5.1]."
+    ],
+    "medidas_inmediatas": [
+      "M1.",
+      "Sugerir confirmar de inmediato el aviso al SAG y entregarle la mortalidad por día y por pabellón, los resultados y los registros de ingreso de aves, vehículos y personas. [D3, 8, 8.1 y 8.5",
+      "C21, 10.4.27].",
+      "M2.",
+      "Sugerir no movilizar aves, huevos, guano, cadáveres ni vehículos hasta recibir la indicación del SAG",
+      "la restricción de movimientos, la cuarentena y el sacrificio sanitario son decisiones de la autoridad y el sistema no las ordena. [D3, 8.1, 8.3 y 8.4].",
+      "M3.",
+      "Sugerir reforzar el filtro sanitario (cambio de vestimenta y calzado, delimitación de zona sucia y limpia), reparar el rodiluvio y mantener los cadáveres en recipientes cerrados con registro diario. [C34, manual de planteles, 6.2, 6.3 y 8.5].",
+      "M4.",
+      "Informar que el personal que intervenga con aves muertas requiere elementos de protección personal para una actividad de riesgo elevado: overol impermeable tipo Tyvek 500, mascarilla N95, botas y cubrebotas, guantes de vinilo, cofia y antiparras.",
+      "Nadie debe sacrificar aves por cuenta propia. [E5, 4, 7 y 9]."
+    ],
+    "protocolos_aplicables": [
+      "D3 (Plan de Contingencia Influenza Aviar - SAG v6.0): Define el procedimiento oficial de atención de denuncias, investigación epidemiológica, zonificación de contención y facultades del MVO ante focos de IAAP en Chile. [D3, 8.1 y 8.2].",
+      "C34 (Resolución Exenta N° 7.695/2024 - SAG): Fija el estándar legal de bioseguridad avícola obligatorio en Chile, incluyendo barreras físicas, desinfección vehicular, cuarentenas de reemplazos, control de guano y registros de mortalidad. [C34, Secciones 5, 6 y 8].",
+      "C21 (Código Terrestre de la OMSA, Capítulo 10.4): Fija las definiciones internacionales de IAAP, el período de incubación a nivel de flock (14 días), normas de vigilancia epidemiológica activa/pasiva y condiciones de bioseguridad para el comercio. [C21, Art. 10.4.1 y 10.4.27]."
+    ],
+    "documentos_esperados": [
+      "D3",
+      "C34",
+      "C21",
+      "E5"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
+    ]
+  }
+}

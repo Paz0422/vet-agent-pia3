@@ -1,0 +1,103 @@
+{
+  "id_escenario": "IAAP-10",
+  "titulo": "Mortalidad súbita en plantel de ponedoras con brechas de bioseguridad",
+  "version": "borrador_5",
+  "autor": "Alexander Riveros Ávila",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Gallinas de postura de 48 semanas",
+    "sistema_productivo": "Gallinas de postura de 48 semanas en jaula, plantel industrial de ponedoras (predio ficticio \"Plantel Los Aromos\"). 4 pabellones de 30.000 aves cada uno: 120.000 aves en total.",
+    "region": "O'Higgins",
+    "comuna": "Malloa",
+    "fecha_evento": "2026-07-14",
+    "n_animales": 120000,
+    "signos_clinicos": [
+      "depresión",
+      "plumas erizadas",
+      "edema facial",
+      "cianosis de cresta y barbillas",
+      "diarrea verdosa"
+    ],
+    "mortalidad_pct": 1.3,
+    "morbilidad_pct": 5.0,
+    "clima": {
+      "temperatura_media_c": 8.4,
+      "humedad_relativa_pct": 86.0,
+      "precipitacion_mm": 18.0
+    },
+    "aves_silvestres_cercanas": "Tranque de riego a unos 600 m al norte del plantel, con patos y taguas silvestres observados a diario por los trabajadores. El 2026-07-11 un trabajador vio 3 patos silvestres muertos en la orilla del tranque; no se informó ni se tomaron muestras. Malla antipájaros rota en un costado del pabellón 2 desde aprox. el 2026-07-09 (avisada el 10-jul, sin reparar al 16-jul); se observan palomas y chincoles posados dentro del pabellón.",
+    "historial_brotes_zona": "Según el encargado, no hay brotes registrados en aves de corral en la comuna en los últimos 12 meses. No hay otros antecedentes disponibles.",
+    "movimientos_animales": "Aves: sin ingreso de aves en las últimas 10 semanas. Huevos: camión colector lunes, miércoles y viernes (6, 8, 10, 13 y 15-jul); carga en la sala de huevos, fuera del sector de pabellones. Retiro de mortalidad: empresa externa que presta servicio a varios planteles de la zona; retiros el 7, 10 y 14-jul. El 10-jul el camión entró hasta el sector de pabellones sin pasar por el arco sanitario (fuera de servicio desde el 5-jul por falla de bomba) y sin desinfección manual registrada. La mortalidad se acumula en un contenedor sin tapa junto al pabellón 2. Personas: 6 operarios propios que trabajan en los 4 pabellones. El registro de visitas no muestra visitas externas en 3 semanas, salvo un técnico de mantenimiento el 9-jul (reparación del arco).",
+    "indicadores_productivos": "Densidad: 30.000 aves por pabellón. Postura pabellón 2: 92 % (13-jul) · 90 % · 84 % · 78 % · 70 % (17-jul). Postura pabellón 3: 91 % (13-jul) · 90 % · 89 % · 86 % · 82 % (17-jul). Consumo de agua del pabellón 2: 18 % menor al habitual el 16-jul. Despachos de huevo normales hasta el 15-jul; el despacho del 17-jul no se realizó tras la visita del SAG. Contexto del evento: Malloa, Región de O'Higgins. Inicio del evento: 2026-07-14 (invierno). Notificación al SAG el 2026-07-16 por la mañana. Corte de la información: 2026-07-18; los recuentos de muertes llegan hasta el 17-jul y no hay recuento del 18-jul. Registro clínico y mortalidad: Pabellones 2 y 3: depresión, plumas erizadas, edema facial, cianosis de cresta y barbillas y diarrea verdosa. Pabellones 1 y 4 sin cambios (5 a 7 muertes diarias, nivel habitual). Muertes por día, pabellón 2: 13-jul: 6 · 14-jul: 9 · 15-jul: 44 · 16-jul: 236 · 17-jul: 905. Muertes por día, pabellón 3: 13-jul: 5 · 14-jul: 5 · 15-jul: 8 · 16-jul: 61 · 17-jul: 342. Muertes en los pabellones 2 y 3 (14 al 17-jul): 1.610 aves, equivalentes a 1,3 % de la población del plantel (120.000) o 2,7 % de los pabellones afectados (60.000). La cifra no incluye las muertes habituales de los pabellones 1 y 4 ni corresponde a una mortalidad excedente calculada. Morbilidad estimada por el encargado al 17-jul: unas 6.000 aves con signos (5,0 % del plantel). Antecedentes de muestreo: Muestras tomadas el 2026-07-16 por el médico veterinario oficial (hisopos orofaríngeos y cloacales de 20 aves de los pabellones 2 y 3). Prueba 1: RT-PCR influenza A (gen M) · 2026-07-17 · positivo. Prueba 2: RT-PCR subtipo H5 · 2026-07-18 · positivo. Patotipificación (alta o baja patogenicidad) pendiente. Contexto climático y ambiental: Semana 10 al 16-jul: temperatura media 8,4 °C (mínima -1 °C, máxima 16 °C); humedad relativa media 86 %; precipitación acumulada 18 mm (lluvias 11 y 12-jul). Tranque de riego a unos 600 m al norte del plantel, con patos y taguas silvestres observados a diario por los trabajadores. El 2026-07-11 un trabajador vio 3 patos silvestres muertos en la orilla del tranque; no se informó ni se tomaron muestras. Malla antipájaros rota en un costado del pabellón 2 desde aprox. el 2026-07-09 (avisada el 10-jul, sin reparar al 16-jul); se observan palomas y chincoles posados dentro del pabellón.",
+    "resultados_laboratorio": [
+      {
+        "prueba": "RT-PCR influenza A / gen M",
+        "resultado": "Positivo. Hisopos orofaríngeos y cloacales de 20 aves de los pabellones 2 y 3 tomados por el médico veterinario oficial el 2026-07-16.",
+        "fecha": "2026-07-17"
+      },
+      {
+        "prueba": "RT-PCR subtipo H5",
+        "resultado": "Positivo. Patotipificación de alta o baja patogenicidad pendiente.",
+        "fecha": "2026-07-18"
+      }
+    ]
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "muy_alto",
+    "factores_riesgo": [
+      "Exclusión de aves silvestres: malla rota en el pabellón 2, el primero afectado.",
+      "El manual de bioseguridad del SAG exige que los pabellones eviten el ingreso de aves silvestres y que se revise el estado de mallas, cortinas, techos y puertas (C34, Manual D-VYC-VIS-PP-004, sec. 7.1).",
+      "Vehículos: el camión de retiro de mortalidad entró al sector de pabellones sin pasar por el arco y no hay registro de desinfección manual",
+      "se desconoce si hubo otro tipo de desinfección.",
+      "El manual exige que los vehículos que ingresan al sector pasen por rodiluvio, arco sanitario o aspersión manual, con registro verificable (C34, sec. 6.2).",
+      "Manejo de la mortalidad: contenedor sin tapa junto al pabellón 2 y empresa que visita varios planteles.",
+      "El manual exige retiro diario en contenedores cerrados e identificados, con registro (C34, sec. 8.5).",
+      "Aves acuáticas silvestres cerca del plantel: la mayor densidad de aves silvestres alrededor de planteles se ha asociado a mayor riesgo de brotes de influenza aviar de alta patogenicidad (Velkers et al., 2021, DOI 10.1111/tbed.13595",
+      "fuente fuera del corpus, informada a E4).",
+      "Personal compartido: los mismos 6 operarios atienden los 4 pabellones."
+    ],
+    "hipotesis_alternativas": [
+      "Enfermedad de Newcastle u otra enfermedad respiratoria aguda (signos parecidos)",
+      "se distingue con el diagnóstico de laboratorio diferencial.",
+      "Influenza aviar H5 de baja patogenicidad: depende de la patotipificación pendiente.",
+      "Problemas de manejo (falla de agua, ventilación o intoxicación): poco probables por el patrón de propagación entre pabellones y los resultados de laboratorio, pero no se han descartado formalmente."
+    ],
+    "informacion_faltante": [
+      "Patogenicidad de la cepa (pendiente).",
+      "Ruta del camión de retiro de mortalidad: qué otros planteles visitó antes y después del 10-jul.",
+      "Si los patos muertos del tranque eran portadores del virus (no se muestrearon).",
+      "Estado de las aves de los pabellones 1 y 4 en los próximos días.",
+      "Recuento de muertes del 18-jul (corte) y subtipo N.",
+      "Fuente y tratamiento del agua de bebida."
+    ],
+    "medidas_inmediatas": [
+      "El SAG ya fue notificado",
+      "según su plan de contingencia, la sospecha se notifica de inmediato (D3, sec. 5).",
+      "Mantener la comunicación y colaboración con el SAG.",
+      "Reforzar el registro y la desinfección de cada ingreso de vehículos y personas, como indica el manual de bioseguridad (C34, sec. 6.2 y 6.3).",
+      "Retirar la mortalidad a diario en contenedores cerrados e identificados y no entregarla a terceros sin indicación del SAG (C34, sec. 8.5).",
+      "Reparar la malla del pabellón 2 para impedir el ingreso de aves silvestres (C34, sec. 7.1).",
+      "Usar los elementos de protección personal definidos por el SAG para emergencias con riesgo de zoonosis",
+      "el instructivo indica evitar el ingreso de vehículos al interior del plantel (E5, sec. 6 y 7).",
+      "Acciones reguladas: la restricción de movimientos, la cuarentena, el sacrificio sanitario y las zonas de protección y vigilancia las decide y ejecuta el SAG",
+      "el sistema no las ordena (D3, sec. 8.3, 10.1 y 11.1)."
+    ],
+    "protocolos_aplicables": [
+      "C34 · SAG, Res. Ex. N° 7.695/2024: Manual de Bioseguridad en planteles de aves (D-VYC-VIS-PP-004, v02), sec. 6.1 a 6.3 (perímetro, vehículos y personas), 7.1 (exclusión de aves) y 8.5 (mortalidad). D3 · SAG, Plan de Contingencia Influenza Aviar v6.0: sec. 5 (notificación inmediata), 8.1 a 8.4 (atención de la sospecha, muestreo y confirmación), 10.1 y 11.1 (cuarentena, sacrificio y zonas). E5 · SAG, Instructivo Técnico de Bioseguridad de las Personas en una Emergencia Zoosanitaria con Riesgo de Zoonosis: Influenza Aviar (v3, 2026): sec. 6, 7 y 14 (conducta, protección personal y vigilancia de expuestos)."
+    ],
+    "documentos_esperados": [
+      "C34",
+      "D3",
+      "E5",
+      "Velkers et al. (2021), DOI 10.1111/tbed.13595, fuente externa fuera del corpus"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
+    ]
+  }
+}

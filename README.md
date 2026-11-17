@@ -81,7 +81,7 @@ uvicorn vet_agent.api:app --reload
 
 | Ruta | Qué hace |
 |---|---|
-| `GET /escenarios` | Lista los escenarios de `corpus/escenarios` (por ejemplo `IAAP-00`, `IAAP-12`). |
+| `GET /escenarios` | Lista los escenarios de `corpus/escenarios` (`IAAP-01` a `IAAP-12`). |
 | `GET /escenarios/{id}` | Devuelve solo la Parte A (la entrada) de ese escenario. |
 | `POST /analizar` | Recibe un caso en JSON y devuelve `informe` y `fuentes`. Aprueba la revisión humana automáticamente. |
 

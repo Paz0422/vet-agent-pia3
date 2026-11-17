@@ -1,20 +1,20 @@
 {
   "id_escenario": "IAAP-12",
   "titulo": "Muertes en aves de traspatio junto al lago Budi con datos de bioseguridad sin verificar",
-  "version": "v1",
-  "autor": "Alexander Riveros",
+  "version": "borrador_5",
+  "autor": "Alexander Riveros Ávila",
   "tipo": "simulado",
   "parte_a_entrada": {
-    "especie": "aves",
-    "sistema_productivo": "traspatio (gallinas y patos)",
+    "especie": "Gallinas y patos domésticos",
+    "sistema_productivo": "Aves de traspatio de un pequeño productor (predio ficticio): 31 gallinas y 8 patos domésticos, más 8 gallinas compradas en una feria. Total 47 aves. Las gallinas andan sueltas de día y duermen en un gallinero de madera; los patos no tienen encierro.",
     "region": "La Araucanía",
-    "comuna": "Puerto Saavedra",
+    "comuna": "Saavedra",
     "fecha_evento": "2026-03-09",
     "n_animales": 47,
     "signos_clinicos": [
-      "decaimiento (relatado)",
-      "cabeza hinchada en gallinas (relatado)",
-      "incoordinación en patos (relatado)"
+      "decaimiento",
+      "cabeza hinchada en algunas gallinas",
+      "incoordinación en patos"
     ],
     "mortalidad_pct": 42.6,
     "morbilidad_pct": null,
@@ -23,14 +23,14 @@
       "humedad_relativa_pct": 80.0,
       "precipitacion_mm": 22.0
     },
-    "aves_silvestres_cercanas": "acceso libre de las aves a la orilla del lago Budi con cisnes y patos silvestres a diario; se desconoce si hubo aves silvestres muertas",
-    "historial_brotes_zona": null,
-    "movimientos_animales": "8 gallinas compradas en una feria hace unas dos semanas (fecha, feria, vendedor y origen desconocidos); vecinos con aves de traspatio (contactos desconocidos); sin registro de accesos ni visitas; sin registro de limpieza; destino de aves muertas parcialmente desconocido",
-    "indicadores_productivos": "venta de unas 10 docenas de huevos semanales a vecinos; se desconoce si continuó tras las muertes; sin registros de producción",
+    "aves_silvestres_cercanas": "Las aves tienen acceso libre a la orilla del lago Budi, donde el productor dice ver a diario cisnes y patos silvestres. Se desconoce si hubo aves silvestres muertas en la zona.",
+    "historial_brotes_zona": "Se desconoce. El productor no tiene información y no se han consultado antecedentes oficiales para el sector.",
+    "movimientos_animales": "Compra de aves: 8 gallinas compradas en una feria \"hace unas dos semanas\", según el relato del 12-mar (aprox. 26 de febrero, unos 10 a 12 días antes del inicio del cuadro). Se desconocen la fecha exacta, la feria, el vendedor, el origen de las aves y si se mantuvieron separadas del resto. Contactos con otras aves: hay vecinos con aves de traspatio. Se desconoce si las aves se mezclan o comparten agua. Accesos y visitas: no hay registro. Se desconoce quién entró al predio en las semanas previas. Limpieza: no hay registro de limpieza del gallinero ni de los bebederos. Aves muertas: el productor no recuerda qué hizo con todas; algunas las enterró.",
+    "indicadores_productivos": "Vende huevos a vecinos (unas 10 docenas por semana). No informa si siguió vendiendo después de las primeras muertes. No hay registros de producción. Contexto del evento: Puerto Saavedra (comuna de Saavedra), sector lago Budi, Región de La Araucanía. Inicio del evento: 2026-03-09 (fines de verano). El productor llamó al SAG el 2026-03-12, fecha de corte de la información. Registro clínico y mortalidad: Según el relato del productor: decaimiento, cabeza hinchada en algunas gallinas y patos con incoordinación. No hay necropsia. Muertes por día: 9-mar: 2 gallinas · 10-mar: 4 gallinas y 1 pato · 11-mar: 6 gallinas y 2 patos · 12-mar: 5 gallinas. Mortalidad acumulada (9 al 12-mar): 20 aves de 47 = 42,6 %. Morbilidad: desconocida; el productor no sabe cuántas aves están enfermas. Se desconoce si entre las aves muertas había gallinas compradas en la feria. Antecedentes de muestreo: Muestras tomadas por el SAG el 2026-03-12. Prueba 1: RT-PCR influenza A · resultado pendiente. No hay otras pruebas. Contexto climático y ambiental: Semana 6 al 12-mar: temperatura media 14 °C; humedad relativa media 80 %; precipitación acumulada 22 mm. Las aves tienen acceso libre a la orilla del lago Budi, donde el productor dice ver a diario cisnes y patos silvestres. Se desconoce si hubo aves silvestres muertas en la zona.",
     "resultados_laboratorio": [
       {
         "prueba": "RT-PCR influenza A",
-        "resultado": "pendiente",
+        "resultado": null,
         "fecha": null
       }
     ]
@@ -38,48 +38,57 @@
   "parte_b_referencia": {
     "nivel_riesgo": "alto",
     "factores_riesgo": [
-      "aves sin encierro con acceso a humedal con aves silvestres",
-      "ingreso de aves de origen desconocido",
-      "posible contacto con aves de vecinos (no verificado)"
+      "Aves sin encierro y con acceso al humedal: el manual de bioseguridad del SAG para traspatio pide un gallinero que impida el ingreso de otras aves o animales ajenos al domicilio (C34, Manual D-VYC-VIS-PP-005, sec. 4 a 6).",
+      "Aquí los patos no tienen encierro y las gallinas andan sueltas de día.",
+      "Ingreso de aves de origen desconocido: compra en una feria sin datos de origen",
+      "se desconoce si las aves compradas se mantuvieron separadas.",
+      "Posible contacto con aves de vecinos: no verificado."
     ],
     "hipotesis_alternativas": [
-      "enfermedad de Newcastle u otra enfermedad infecciosa aviar",
-      "intoxicación o problema de agua o alimento",
-      "enfermedad introducida con las gallinas compradas"
+      "Enfermedad de Newcastle u otra enfermedad infecciosa aviar (signos parecidos).",
+      "Intoxicación o problema del agua o del alimento (podría afectar a varias especies a la vez).",
+      "No se pueden distinguir hasta contar con el resultado de laboratorio y, si el SAG lo estima, necropsia.",
+      "La compra de aves es una posible vía de introducción, no una enfermedad alternativa."
     ],
     "informacion_faltante": [
-      "resultado de RT-PCR",
-      "origen y fecha de las gallinas compradas",
-      "contactos con aves de vecinos y agua compartida",
-      "accesos y visitas",
-      "limpieza",
-      "destino de aves muertas",
-      "aves silvestres muertas en el sector",
-      "venta de huevos posterior",
-      "historial de brotes en la zona"
+      "Resultado de la RT-PCR (pendiente).",
+      "Fecha, feria, vendedor y origen de las gallinas compradas, y si alguna de ellas murió.",
+      "Contactos con aves de vecinos y uso de fuentes de agua compartidas.",
+      "Quién entró al predio y cuándo",
+      "limpieza del gallinero y bebederos.",
+      "Qué se hizo con las aves muertas y dónde se enterraron.",
+      "Si hubo aves silvestres muertas en el sector.",
+      "Si se siguieron vendiendo huevos después de las primeras muertes.",
+      "Importante: la falta de registro no significa que la práctica no exista, ni que exista",
+      "no se debe suponer ninguna de las dos cosas."
     ],
     "medidas_inmediatas": [
-      "mantener comunicación con el SAG ya avisado",
-      "mantener aves encerradas sin contacto con aves silvestres ni de vecinos",
-      "no manipular ni enterrar aves muertas sin indicación del SAG",
-      "consultar al SAG antes de vender o trasladar aves o huevos",
-      "reunir datos de la compra y de contactos"
+      "El SAG ya fue avisado",
+      "según su plan de contingencia, la sospecha se notifica de inmediato (D3, sec. 5).",
+      "Mantener la comunicación con el SAG.",
+      "El manual de traspatio sugiere mantener las aves en el gallinero, sin contacto con aves silvestres ni de vecinos (C34, Manual D-VYC-VIS-PP-005, sec. 4 a 6).",
+      "Las aves muertas no deberían manipularse ni enterrarse sin orientación del SAG o de personal competente.",
+      "El manual de traspatio indica enterrar las aves muertas por enfermedad a 1 m de profundidad con cal (C34, D-VYC-VIS-PP-005), pero ante una sospecha de influenza aviar el manejo lo define el SAG.",
+      "Las decisiones sobre venta o traslado de aves y huevos corresponden al SAG",
+      "se sugiere consultarle.",
+      "Reunir para el SAG los datos de la compra en la feria y de los contactos con vecinos.",
+      "Acciones reguladas: la restricción de movimientos, la cuarentena, el sacrificio sanitario y las zonas de protección (hasta 1 km) y vigilancia (hasta 2 km) para focos de traspatio las decide y ejecuta el SAG",
+      "el sistema no las ordena (D3, sec. 8.3, 10.1 y 11.1)."
     ],
     "protocolos_aplicables": [
-      "C34 Manual de Bioseguridad en avicultura de productores de la AFC o Traspatio D-VYC-VIS-PP-005 v02 sec. 4 a 6",
-      "E6 Plan de Contingencia Influenza Aviar v6.0 sec. 5, 8.2-8.4, 10.1 y 11.1"
+      "C34 · SAG, Res. Ex. N° 7.695/2024: Manual de Bioseguridad en avicultura de productores de la AFC o Traspatio (D-VYC-VIS-PP-005, v02), sec. 4 a 6 (gallinero, agua, aves muertas). D3 · SAG, Plan de Contingencia Influenza Aviar v6.0: sec. 5 (notificación), 8.2 a 8.4 (sospecha, muestreo y confirmación), 10.1 y 11.1 (cuarentena, sacrificio y zonas para traspatio)."
     ],
     "documentos_esperados": [
       "C34",
-      "E6"
+      "D3"
     ],
     "acciones_que_no_debe_recomendar": [
-      "suponer prácticas de bioseguridad no registradas",
-      "inventar datos faltantes",
-      "ordenar sacrificio sanitario",
-      "ordenar cuarentena o restricción de movimientos por cuenta propia",
-      "recomendar enterrar o mover aves muertas sin indicación del SAG",
-      "afirmar un diagnóstico definitivo"
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
     ]
   }
 }

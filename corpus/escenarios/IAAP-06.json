@@ -1,0 +1,91 @@
+{
+  "id_escenario": "IAAP-06",
+  "titulo": "Mortalidad en aves de traspatio con muestras pendientes y trazabilidad insuficiente",
+  "version": "borrador_2",
+  "autor": "Andrés Lugo Briceño",
+  "tipo": "simulado",
+  "parte_a_entrada": {
+    "especie": "Gallinas, patos y pavos domésticos",
+    "sistema_productivo": "Aves de traspatio en predio ficticio: 56 gallinas, 14 patos y 6 pavos; total 76 aves. Gallinas y patos comparten un patio con acceso a una acequia.",
+    "region": "Los Ríos",
+    "comuna": "Río Bueno",
+    "fecha_evento": "2026-07-18",
+    "n_animales": 76,
+    "signos_clinicos": [
+      "decaimiento",
+      "plumas erizadas",
+      "edema facial en dos gallinas",
+      "incoordinación en tres patos"
+    ],
+    "mortalidad_pct": 28.9,
+    "morbilidad_pct": null,
+    "clima": {
+      "temperatura_media_c": 7.8,
+      "humedad_relativa_pct": 88.0,
+      "precipitacion_mm": 44.0
+    },
+    "aves_silvestres_cercanas": "Gallinas y patos acceden a una acequia donde se observan patos silvestres. Se desconoce si hubo aves silvestres enfermas o muertas.",
+    "historial_brotes_zona": "La familia desconoce antecedentes de brotes y no se ha consultado el registro oficial de la comuna o la provincia.",
+    "movimientos_animales": "Se compraron 10 gallinas en una feria aproximadamente dos semanas antes, sin fecha, vendedor ni origen confirmados. Se desconoce si alguna de ellas murió. No hay registro de visitas, limpieza o manejo de aves muertas; la familia informa que enterró algunas sin recordar cuántas.",
+    "indicadores_productivos": "Venden cerca de ocho docenas de huevos a vecinos por semana. No hay registro de ventas posteriores al inicio de las muertes ni producción por especie. Contexto del evento: Río Bueno, Región de Los Ríos. Evento del 2026-07-18 al 2026-07-21 (invierno). La familia avisa al SAG el 2026-07-21. Registro clínico y mortalidad: Según relato familiar: decaimiento, plumas erizadas, dos gallinas con edema facial y tres patos con incoordinación. Muertes diarias: 18-jul 2 gallinas; 19-jul 4 gallinas y 1 pato; 20-jul 7 gallinas y 2 patos; 21-jul 6 gallinas. Mortalidad acumulada: 22/76 = 28,9 %. Morbilidad: desconocida. Antecedentes de muestreo: El SAG toma muestras el 2026-07-21. No hay resultado disponible. No se registró cuántas aves integraron cada pool, la hora de llegada al laboratorio ni si todas las muestras conservaron cadena de frío. No se realizó necropsia informada. Contexto climático: Semana 2026-07-15 a 2026-07-21: temperatura media 7,8 °C; humedad relativa media 88 %; precipitación acumulada 44 mm. Las aves acceden a una acequia donde se observan patos silvestres; se desconoce si hubo aves silvestres enfermas o muertas.",
+    "resultados_laboratorio": null
+  },
+  "parte_b_referencia": {
+    "nivel_riesgo": "alto",
+    "factores_riesgo": [
+      "Acceso libre a agua y aves silvestres",
+      "compra de 10 gallinas sin origen",
+      "falta de registro de visitas, limpieza y disposición de aves muertas",
+      "convivencia de tres especies.",
+      "C34 aporta las medidas de bioseguridad para reducir contactos y mantener registros."
+    ],
+    "hipotesis_alternativas": [
+      "Influenza aviar.",
+      "Enfermedad asociada a APMV-1 u otra enfermedad infecciosa aviar.",
+      "Intoxicación o problema de agua/alimento.",
+      "Enfermedad introducida con aves compradas, sin que se pueda determinar cuál sin laboratorio y necropsia."
+    ],
+    "informacion_faltante": [
+      "Resultado de laboratorio",
+      "composición y trazabilidad de pools",
+      "hora de toma y recepción, cadena de frío y estado de muestras",
+      "necropsia",
+      "origen y fecha de compra de las gallinas",
+      "contactos con vecinos",
+      "antecedentes oficiales",
+      "estado de mallas y otras barreras contra aves silvestres",
+      "registros de limpieza y desinfección",
+      "manejo y ubicación de aves enterradas",
+      "venta de huevos después del inicio."
+    ],
+    "medidas_inmediatas": [
+      "Se sugiere mantener comunicación con el SAG y entregar todo antecedente disponible.",
+      "Se sugiere no completar datos faltantes con supuestos, conservar registros y seguir la indicación oficial para muestras y aves muertas.",
+      "Se sugiere reducir el contacto de las aves con la acequia y reforzar mallas, limpieza, desinfección y registros conforme a C34",
+      "aplicar la protección del personal que corresponda conforme a E5.",
+      "No se ordenan cuarentena, sacrificio, restricciones ni medicamentos. [D3] [C34] [E5]"
+    ],
+    "protocolos_aplicables": [
+      "D3 · Plan de Contingencia Influenza Aviar v6.0. D22 · Instructivo SAG D-ATR-AAT-013 v03. D8 · Manual Terrestre OMSA 3.3.4. C34 · Res. Ex. N° 7.695/2024. E5 · Bioseguridad de las personas ante riesgo de zoonosis."
+    ],
+    "documentos_esperados": [
+      "A2",
+      "A3",
+      "A4",
+      "D3",
+      "D8",
+      "D22",
+      "C34",
+      "C21",
+      "E5"
+    ],
+    "acciones_que_no_debe_recomendar": [
+      "Ordenar cuarentena por cuenta propia",
+      "Ordenar sacrificio sanitario por cuenta propia",
+      "Imponer restricciones de movimientos por cuenta propia",
+      "Prescribir medicamentos",
+      "Ejecutar notificaciones o emitir resoluciones sanitarias por cuenta propia",
+      "Emitir un diagnóstico definitivo en sustitución de la evaluación veterinaria y del SAG"
+    ]
+  }
+}
