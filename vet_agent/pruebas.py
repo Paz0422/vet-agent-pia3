@@ -709,9 +709,10 @@ CASO_EVALUAR = {"especie": "aves", "signos_clinicos": ["mortalidad súbita"],
                 "resultados_laboratorio": [{"prueba": "RT-PCR", "resultado": "positivo", "fecha": "2026-10-22"}]}
 
 
-def correr_evaluar(escenarios):
+def correr_evaluar(escenarios, por_version=None):
     # corre evaluar() con el buscador en memoria y el registro en un archivo temporal;
-    # devuelve (texto del CSV, filas leidas del CSV)
+    # devuelve (texto del CSV, filas leidas del CSV). Si se pasa un dict en por_version,
+    # deja ahi los bytes de registro_B1.csv, registro_B2.csv y registro_B3.csv
     import csv
     import io
     import tempfile
@@ -720,17 +721,26 @@ def correr_evaluar(escenarios):
     with tempfile.TemporaryDirectory() as temporal:
         registro = pathlib.Path(temporal) / "registro.csv"
         con_buscador_de_prueba(lambda: evaluar.evaluar(escenarios, 1, registro), usar_colecciones=True)
-        texto = registro.read_text(encoding="utf-8")
+        crudo = registro.read_bytes()
+        if por_version is not None:
+            for b in ("B1", "B2", "B3"):
+                ruta = evaluar.registro_de(b, registro)
+                por_version[b] = ruta.read_bytes() if ruta.exists() else None
+    assert crudo.startswith(b"\xef\xbb\xbf"), "el registro va en utf-8-sig (con BOM, para Excel)"
+    texto = crudo.decode("utf-8-sig")
     return texto, list(csv.DictReader(io.StringIO(texto)))
 
 
 def prueba_evaluar_registro_formato():
+    import csv
+    import io
     import re
     from vet_agent import evaluar
     from vet_agent.prompts import VERSION_PROMPTS
 
     reintentos = llm.LLM_REINTENTOS
-    texto, filas = correr_evaluar([("IAAP-T1", CASO_EVALUAR)])
+    por_version = {}
+    texto, filas = correr_evaluar([("IAAP-T1", CASO_EVALUAR)], por_version)
     assert texto.splitlines()[0] == ",".join(f'"{c}"' for c in evaluar.COLUMNAS_REGISTRO)  # orden y comillas
     assert [f["baseline"] for f in filas] == ["B1", "B2", "B3"]
     for f in filas:
@@ -738,6 +748,15 @@ def prueba_evaluar_registro_formato():
         assert f["estado"] == "ok" and f["intento"] == "1"
         assert f["entrada"] == "IAAP-T1"
         assert f["version_prompt_base"] == VERSION_PROMPTS
+        assert f["intento_valido"] == "sí" and f["mensaje_error"] == ""
+        informe = json.loads(f["salida"])
+        assert json.loads(f["afirmaciones_descartadas"]) == informe["afirmaciones_descartadas"]
+        assert f["confianza"] == ";".join(r["confianza"] for r in informe["riesgos_identificados"])
+    # cada version tiene ademas su propio registro (utf-8-sig), solo con sus filas
+    for b, crudo in por_version.items():
+        assert crudo and crudo.startswith(b"\xef\xbb\xbf"), b
+        suyas = list(csv.DictReader(io.StringIO(crudo.decode("utf-8-sig"))))
+        assert [s["id_corrida"] for s in suyas] == [f"{b}-IAAP-T1-R1-I1"], (b, suyas)
     # salida = solo el informe, con las mismas claves en las 3 versiones
     salidas = [json.loads(f["salida"]) for f in filas]
     assert "estado" not in salidas[0] and "hipotesis_alternativas" in salidas[0]
@@ -770,8 +789,42 @@ def prueba_evaluar_reintenta_si_falla():
         evaluar.BASELINES.update(originales)
 
     assert [(f["id_corrida"], f["estado"]) for f in filas] == [("B1-IAAP-T1-R1-I1", "error"), ("B1-IAAP-T1-R1-I2", "ok")]
-    assert "JSON valido" in filas[0]["salida"]
+    # el intento fallido queda marcado como no valido, con el error aparte y sin salida
+    assert (filas[0]["intento_valido"], filas[0]["salida"]) == ("no", "")
+    assert "JSON valido" in filas[0]["mensaje_error"]
+    assert filas[1]["intento_valido"] == "sí" and filas[1]["mensaje_error"] == ""
     assert reintentos_vistos == [0, 0], "durante la evaluacion consultar_llm no debe reintentar por su cuenta"
+
+
+def prueba_evaluar_no_mezcla_registros_con_otras_columnas():
+    # un registro de una version anterior de evaluar.py (otras columnas) no se completa a medias
+    import tempfile
+    from vet_agent import evaluar
+
+    with tempfile.TemporaryDirectory() as temporal:
+        registro = pathlib.Path(temporal) / "registro.csv"
+        registro.write_text('"id_corrida","salida"\n"B1-X-R1-I1","{}"\n', encoding="utf-8")
+        fila = dict.fromkeys(evaluar.COLUMNAS_REGISTRO, "") | {"baseline": "B1"}
+        try:
+            evaluar.registrar(fila, registro)
+        except SystemExit as e:
+            assert "otras columnas" in str(e)
+        else:
+            raise AssertionError("debió detenerse: el registro existente tiene otras columnas")
+
+
+def prueba_limpiar_bibliografia_titulo_en_negrita():
+    from vet_agent.rag.limpiar_texto import RE_BIBLIOGRAFIA, quitar_bibliografia
+
+    for titulo in ("References", "## References", "**Referencias**", "## **Referencias**", "## **REFERENCES**",
+                   "#### **REFERENCES**", "# 602 **References**", "# **7. References**", "## **Referencias:**",
+                   "## **Literature Cited**", "### **Bibliografía**"):
+        assert RE_BIBLIOGRAFIA.match(titulo), titulo
+    for no_es in ("## **Resultados**", "### **Evapotranspiración de cultivo de referencia (ETo)**",
+                  "References to the SAG manual are in annex 2"):
+        assert not RE_BIBLIOGRAFIA.match(no_es), no_es
+    lineas = ["# Titulo", "texto"] * 3 + ["## **Referencias**", "- Autor, A. 2020. Algo.", "## Anexo", "tabla"]
+    assert quitar_bibliografia(lineas) == ["# Titulo", "texto"] * 3 + ["## Anexo", "tabla"]
 
 
 def prueba_evaluar_cache_reintento_b3_no_repite_agentes():
@@ -920,9 +973,9 @@ def prueba_evaluar_tiempos_por_caso():
             registro = pathlib.Path(temporal) / "registro.csv"
             con_buscador_de_prueba(lambda: evaluar.evaluar([("IAAP-T1", CASO_EVALUAR)], 1, registro),
                                    usar_colecciones=True)
-            with open(registro, encoding="utf-8") as f:
+            with open(registro, encoding="utf-8-sig") as f:
                 intentos = list(csv.DictReader(f))
-            with open(registro.with_name(evaluar.ARCHIVO_TIEMPOS), encoding="utf-8") as f:
+            with open(registro.with_name(evaluar.ARCHIVO_TIEMPOS), encoding="utf-8-sig") as f:
                 texto = f.read()
                 f.seek(0)
                 tiempos = list(csv.DictReader(f))
@@ -1471,6 +1524,8 @@ if __name__ == "__main__":
 
         prueba_evaluar_registro_formato,
         prueba_evaluar_reintenta_si_falla,
+        prueba_evaluar_no_mezcla_registros_con_otras_columnas,
+        prueba_limpiar_bibliografia_titulo_en_negrita,
         prueba_evaluar_tiempos_por_caso,
         prueba_evaluar_cache_reintento_b3_no_repite_agentes,
         prueba_evaluar_cache_repeticion_nueva_vuelve_a_llamar,
