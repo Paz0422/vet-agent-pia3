@@ -9,9 +9,16 @@ Las 3 versiones (con los nombres que usa Investigacion):
 - B2 monoagente_rag: un solo agente que busca en las 3 colecciones y redacta el informe solo.
 - B3 multiagente:    el grafo actual, aprobando la revision humana automaticamente.
 
-Cada intento de cada corrida agrega una fila a resultados/registro_corridas.csv (UTF-8, todos
-los campos entre comillas), con el formato acordado con Investigacion (documento E1 v6):
+Cada intento de cada corrida agrega una fila a resultados/registro_corridas.csv (UTF-8 con BOM,
+para que Excel muestre bien las tildes; separado por comas y todos los campos entre comillas),
+con el formato acordado con Investigacion (documento E1 v6). La misma fila se agrega tambien al
+registro de su version: registro_corridas_B1.csv, registro_corridas_B2.csv o registro_corridas_B3.csv.
 - id_corrida = baseline-escenario-repeticion-intento, ej. B3-IAAP-01-R2-I1.
+- intento_valido = "sí" si el intento salio ok; si fallo, el error va en mensaje_error y salida
+  queda vacia.
+- afirmaciones_descartadas = la lista del informe, en JSON. confianza = la confianza de cada
+  riesgo de riesgos_identificados del informe, en orden y separadas por ";" (el informe no trae
+  una confianza global).
 - Si un intento termina en error (tiempo agotado, respuesta vacia, JSON invalido o texto
   cortado por max_tokens), se repite la misma combinacion hasta MAX_INTENTOS en total.
   Cada intento es una fila; apenas uno sale "ok" no se hacen mas.
@@ -62,6 +69,7 @@ COLUMNAS_REGISTRO = [
     "id_corrida", "fecha", "version_sistema", "baseline", "escenario", "repeticion", "intento",
     "modelo_y_version", "temperatura", "max_tokens", "version_prompt_base",
     "entrada", "salida", "tiempo_s", "fragmentos", "estado",
+    "intento_valido", "mensaje_error", "afirmaciones_descartadas", "confianza",
 ]
 
 # tiempo de cada caso (escenario x repeticion); se guarda en la misma carpeta que el registro
@@ -235,36 +243,56 @@ def correr(baseline: str, escenario: str, caso: dict, repeticion: int, intento: 
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     ULTIMAS_SALIDAS.clear()  # para no guardar las de un intento anterior si este falla antes
     inicio = time.perf_counter()
+    descartadas, confianza, error = "", "", ""
     try:
         informe, fragmentos = configuracion(caso)
         if not informe:
             raise ValueError("el sistema no entregó informe (respuesta vacía)")
         salida, estado = json.dumps(informe, ensure_ascii=False), "ok"
         fragmentos = lista_fragmentos(fragmentos)
+        descartadas = json.dumps(informe.get("afirmaciones_descartadas", []), ensure_ascii=False)
+        confianza = ";".join(str(r.get("confianza", "")) for r in informe.get("riesgos_identificados", [])
+                             if isinstance(r, dict))
     except Exception as e:
         # tiempo agotado, respuesta vacia, JSON invalido o texto cortado: se anota y se reintenta
-        salida, estado, fragmentos = f"{type(e).__name__}: {e}", "error", ""
+        salida, estado, fragmentos, error = "", "error", "", f"{type(e).__name__}: {e}"
     return {
         "id_corrida": id_corrida(baseline, escenario, repeticion, intento), "fecha": fecha,
         "baseline": baseline, "escenario": escenario, "repeticion": repeticion, "intento": intento,
         **fijos, "entrada": escenario, "salida": salida,
         "tiempo_s": f"{time.perf_counter() - inicio:.1f}", "fragmentos": fragmentos, "estado": estado,
+        "intento_valido": "sí" if estado == "ok" else "no", "mensaje_error": error,
+        "afirmaciones_descartadas": descartadas, "confianza": confianza,
     }
 
 
 def _agregar(fila: dict, ruta: pathlib.Path, columnas: list[str]) -> None:
-    # se agrega una fila apenas termina: si el proceso se corta, no se pierde lo anterior
+    # se agrega una fila apenas termina: si el proceso se corta, no se pierde lo anterior.
+    # utf-8-sig: el BOM va solo al comienzo del archivo (al agregar filas no se repite)
     ruta.parent.mkdir(parents=True, exist_ok=True)
     nuevo = not ruta.exists() or ruta.stat().st_size == 0
-    with open(ruta, "a", encoding="utf-8", newline="") as f:
+    if not nuevo:
+        # un archivo de otra version de evaluar.py (otras columnas) no se mezcla con este
+        with open(ruta, encoding="utf-8-sig", newline="") as f:
+            cabecera = next(csv.reader(f), [])
+        if cabecera != columnas:
+            raise SystemExit(f"{ruta} ya existe con otras columnas; muévelo o bórralo antes de seguir")
+    with open(ruta, "a", encoding="utf-8-sig", newline="") as f:
         w = csv.DictWriter(f, fieldnames=columnas, quoting=csv.QUOTE_ALL)
         if nuevo:
             w.writeheader()
         w.writerow(fila)
 
 
+def registro_de(baseline: str, ruta: pathlib.Path = REGISTRO) -> pathlib.Path:
+    """registro_corridas.csv -> registro_corridas_B1.csv (el registro de una sola version)."""
+    return ruta.with_name(f"{ruta.stem}_{baseline}{ruta.suffix}")
+
+
 def registrar(fila: dict, ruta: pathlib.Path = REGISTRO) -> None:
+    # la fila va al registro conjunto y al de su version
     _agregar(fila, ruta, COLUMNAS_REGISTRO)
+    _agregar(fila, registro_de(fila["baseline"], ruta), COLUMNAS_REGISTRO)
 
 
 def tiempo_del_caso(intentos: list[dict], fecha: str, fijos: dict) -> dict:
@@ -302,7 +330,7 @@ def guardar(filas: list[dict], ruta: pathlib.Path = SALIDA) -> None:
             informe = json.loads(fila["salida"]) if fila["estado"] == "ok" else {}
             w.writerow({"configuracion": fila["baseline"], "escenario": fila["escenario"],
                         "repeticion": fila["repeticion"],
-                        "informe": fila["salida"] if fila["estado"] == "ok" else f"ERROR: {fila['salida']}",
+                        "informe": fila["salida"] if fila["estado"] == "ok" else f"ERROR: {fila['mensaje_error']}",
                         "fuentes_citadas": fuentes_citadas(informe), "segundos": fila["tiempo_s"]})
 
 
@@ -409,12 +437,13 @@ def main() -> None:
     filas = evaluar(escenarios, args.repeticiones)
     finales = ultimos_intentos(filas)
     guardar(finales)
-    print(f"\nListo: {len(filas)} intentos de {len(finales)} corridas agregados a {REGISTRO.relative_to(RAIZ)}; "
+    print(f"\nListo: {len(filas)} intentos de {len(finales)} corridas agregados a {REGISTRO.relative_to(RAIZ)} "
+          f"(y a {registro_de('B1').name}, {registro_de('B2').name} y {registro_de('B3').name}); "
           f"tiempo de cada caso en {REGISTRO.with_name(ARCHIVO_TIEMPOS).relative_to(RAIZ)}; "
           f"resumen en {SALIDA.relative_to(RAIZ)}")
     fallidas = sum(f["estado"] == "error" for f in finales)
     if fallidas:
-        print(f"OJO: {fallidas} corridas fallaron en los {MAX_INTENTOS} intentos (ver la columna salida)")
+        print(f"OJO: {fallidas} corridas fallaron en los {MAX_INTENTOS} intentos (ver la columna mensaje_error)")
 
 
 if __name__ == "__main__":

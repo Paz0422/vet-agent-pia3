@@ -162,7 +162,16 @@ resultados/
 
 `salidas_agentes/` la crea `evaluar.py` junto a `registro_corridas.csv`. Guarda un JSON por cada intento de B3, `<id_corrida>.json` (ej. `B3-IAAP-01-R2-I1.json`), con la salida de cada agente tal como la entregó (`climatico`, `diagnostico`, `bioseguridad`, con su `evidencia`). Si hubo rondas de debate, queda la última salida de cada agente. Si el intento falló después de que los agentes respondieron (por ejemplo, falló el moderador), el archivo igual se guarda, con `"estado": "error"`. B1 y B2 no guardan nada en esta carpeta.
 
-`ejemplo_registro_corridas.csv` tiene las mismas columnas que `registro_corridas.csv` (el que escribe `evaluar.py`), pero sus datos son simulados: sirve para mostrar el formato, no como resultado.
+`registro_corridas.csv` (el que escribe `evaluar.py`) tiene una fila por intento de las 3 versiones. Además, cada fila se copia al registro de su versión: `registro_corridas_B1.csv`, `registro_corridas_B2.csv` y `registro_corridas_B3.csv`. Todos van en UTF-8 con BOM (para que Excel muestre bien las tildes), separados por comas y con todos los campos entre comillas. Las últimas columnas son:
+
+- `intento_valido`: `sí` si el intento salió bien, `no` si falló.
+- `mensaje_error`: el error de un intento fallido. En ese caso `salida` queda vacía.
+- `afirmaciones_descartadas`: la lista del informe, en JSON.
+- `confianza`: la confianza de cada riesgo de `riesgos_identificados` del informe, en orden y separadas por `;`. El informe no trae una confianza global.
+
+Si `registro_corridas.csv` ya existe con otras columnas (de una versión anterior de `evaluar.py`), `evaluar.py` se detiene en vez de mezclar formatos.
+
+`ejemplo_registro_corridas.csv` tiene las mismas columnas que `registro_corridas.csv`, pero sus datos son simulados (`version_sistema` = `ejemplo`): sirve para mostrar el formato, no como resultado.
 
 ## Limitaciones
 

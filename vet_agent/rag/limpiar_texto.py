@@ -32,9 +32,10 @@ AVISO_PERDIDA = 0.5          # avisar si un documento pierde mas que esto
 
 RE_IMAGEN = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 RE_MARCA_IMAGEN = re.compile(r"^\W*(==>\s*picture\b.*<==|-+\s*(start|end) of picture text\s*-+)\W*$", re.IGNORECASE)
+# "References", "## References", "**Referencias**" y tambien "## **Referencias**" (titulo en negrita)
 RE_BIBLIOGRAFIA = re.compile(
-    r"^(#{1,6}\s*|\*\*\s*)?(\d+\.?\s*)?(references?|referencias( bibliogr[áa]ficas)?|bibliograf[íi]a|bibliography|"
-    r"literature cited|works cited|reference list|cited literature)\s*(\*\*)?\s*:?\s*$", re.IGNORECASE)
+    r"^(#{1,6}\s*)?(\d+\.?\s*)?(\*\*\s*)?(\d+\.?\s*)?(references?|referencias( bibliogr[áa]ficas)?|bibliograf[íi]a|bibliography|"
+    r"literature cited|works cited|reference list|cited literature)\s*:?\s*(\*\*)?\s*:?\s*$", re.IGNORECASE)
 RE_NUMERO_PAGINA = re.compile(r"^\W*((page|p[áa]g(ina)?\.?)\s*)?\d{1,4}(\s*(of|de|/)\s*\d{1,4})?\W*$", re.IGNORECASE)
 RE_LEGAL = re.compile(
     r"downloaded from|©\s*(19|20)\d\d|\bcopyright\b.{0,10}(19|20)\d\d|this article is licensed under|"
